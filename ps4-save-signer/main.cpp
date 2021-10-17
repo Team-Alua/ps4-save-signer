@@ -26,13 +26,13 @@ int main(void)
 
     // No buffering
     setvbuf(stdout, NULL, _IONBF, 0);
-
+    
     // Create a server socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd < 0)
     {
-        DEBUGLOG << "Failed to create socket: " << strerror(errno);
+        printf("Failed to create socket: %s", strerror(errno));
         for (;;);
     }
 
@@ -53,7 +53,7 @@ int main(void)
 
     if (listen(sockfd, 5) != 0)
     {
-        DEBUGLOG << "Failed to listen: " << strerror(errno);
+        printf("Failed to listen: %s", strerror(errno));
         for (;;);
     }
 
@@ -63,17 +63,18 @@ int main(void)
 
         if (connfd < 0)
         {
-            DEBUGLOG << "Failed to accept client: " << strerror(errno);
+            printf("Failed to accept client: %s", strerror(errno));
             for (;;);
         }
 
-        DEBUGLOG << "Accepted client '" << connfd << "'";
+        printf("Failed to accept client: %d", connfd);
 
         // Write a "hello" message then terminate the connection
         const char msg[] = "hello\n";
         write(connfd, msg, sizeof(msg));
         close(connfd);
 
-        DEBUGLOG << "Closed client '" << connfd << "'";
+        printf("Closed client %d", connfd);
+
     }
 }
