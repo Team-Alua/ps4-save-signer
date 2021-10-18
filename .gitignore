@@ -32,7 +32,7 @@
 *.app
 
 ps4-save-signer/x64
-pkg/
-release/
 
+release/
+pkg/eboot.bin
 .vscode/
