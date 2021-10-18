@@ -32,8 +32,8 @@ int main(void)
 
     if (sockfd < 0)
     {
-        printf("Failed to create socket: %s", strerror(errno));
-        for (;;);
+        printf("Failed to create socket: %s\n", strerror(errno));
+        for(;;);
     }
 
     // Bind to 0.0.0.0:PORT
@@ -42,10 +42,9 @@ int main(void)
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     serverAddr.sin_port = htons(PORT);
 
-    if (bind(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0)
-    {
-        DEBUGLOG << "Failed to bind to 0.0.0.0:" << PORT << ": " << strerror(errno);
-        for (;;);
+    // Fixes issue where it would not accept the same address after it was closed
+    while (bind(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
+        sceKernelUsleep(20000);
     }
 
     // Listen and accept clients
@@ -53,8 +52,8 @@ int main(void)
 
     if (listen(sockfd, 5) != 0)
     {
-        printf("Failed to listen: %s", strerror(errno));
-        for (;;);
+        printf("Failed to listen: %s\n", strerror(errno));
+        for(;;);
     }
 
     for (;;)
@@ -63,18 +62,20 @@ int main(void)
 
         if (connfd < 0)
         {
-            printf("Failed to accept client: %s", strerror(errno));
-            for (;;);
+            printf("Failed to accept client: %s\n", strerror(errno));
+            for(;;);
         }
 
-        printf("Failed to accept client: %d", connfd);
+        printf("Accepted client: %d", connfd);
 
         // Write a "hello" message then terminate the connection
         const char msg[] = "hello\n";
         write(connfd, msg, sizeof(msg));
         close(connfd);
 
-        printf("Closed client %d", connfd);
-
+        printf("Closed client %d\n", connfd);
+        break;
     }
+    close(sockfd);
+    for(;;);
 }
