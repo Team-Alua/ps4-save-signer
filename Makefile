@@ -1,9 +1,10 @@
 TOOLCHAIN 	:= $(OO_PS4_TOOLCHAIN)
 PROJDIR   	:= $(shell basename $(CURDIR))
+COMMONDIR   := $(TOOLCHAIN)/samples/_common
 INTDIR    	:= $(PROJDIR)/x64/Debug
 
 # Libraries linked into the ELF.
-LIBS 		:= -lc -lkernel -lc++
+LIBS 		:= -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceFreeType
 
 # Compiler options. You likely won't need to touch these.
 UNAME_S := $(shell uname -s)
@@ -19,14 +20,16 @@ ifeq ($(UNAME_S),Darwin)
 endif
 ODIR 		:= $(INTDIR)
 SDIR 		:= $(PROJDIR)
-IDIRS 		:= -I$(TOOLCHAIN)/include -I$(TOOLCHAIN)/include/c++/v1
+COMMONDIR   := $(COMMONDIR)
+IDIRS 		:= -I$(TOOLCHAIN)/include -I$(TOOLCHAIN)/include/c++/v1 -I$(TOOLCHAIN)/samples/_common/
 LDIRS 		:= -L$(TOOLCHAIN)/lib
-CFLAGS 		:= -cc1 -triple x86_64-scei-ps4-elf -munwind-tables $(IDIRS) -fuse-init-array -debug-info-kind=limited -debugger-tuning=gdb -emit-obj
+CFLAGS 		:= -cc1 -triple x86_64-scei-ps4-elf -munwind-tables $(IDIRS) -DGRAPHICS_USES_FONT -fuse-init-array -debug-info-kind=limited -debugger-tuning=gdb -emit-obj
 LFLAGS 		:= -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr $(LDIRS) $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
-CFILES 		:= $(wildcard $(SDIR)/*.c)
-CPPFILES 	:= $(wildcard $(SDIR)/*.cpp)
-OBJS 		:= $(patsubst $(SDIR)/%.c, $(ODIR)/%.o, $(CFILES)) $(patsubst $(SDIR)/%.cpp, $(ODIR)/%.o, $(CPPFILES))
+CFILES      := $(wildcard $(SDIR)/*.c)
+CPPFILES    := $(wildcard $(SDIR)/*.cpp)
+COMMONFILES := $(wildcard $(COMMONDIR)/*.cpp)
+OBJS        := $(patsubst $(SDIR)/%.c, $(ODIR)/%.o, $(CFILES)) $(patsubst $(SDIR)/%.cpp, $(ODIR)/%.o, $(CPPFILES)) $(patsubst $(COMMONDIR)/%.cpp, $(ODIR)/%.o, $(COMMONFILES))
 
 TARGET = eboot.bin
 
