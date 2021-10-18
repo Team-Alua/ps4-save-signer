@@ -8,12 +8,8 @@
 
 #include <orbis/libkernel.h>
 
-#include "../../_common/log.h"
-
 #define PORT 9025
 
-// Logging
-std::stringstream debugLogStream;
 
 int main(void)
 {
