@@ -5,10 +5,14 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-
+#include "util.h"
 #include <orbis/libkernel.h>
 
 #define PORT 9025
+// Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
+#define SYS_PRINT(SIZE, ...) { char error[SIZE]; sprintf(error, __VA_ARGS__); system_notification(error);  }
+
+
 
 
 int main(void)
@@ -28,7 +32,8 @@ int main(void)
 
     if (sockfd < 0)
     {
-        printf("Failed to create socket: %s\n", strerror(errno));
+        
+        SYS_PRINT(50, "Failed to create socket: %s\n", strerror(errno));
         for(;;);
     }
 
@@ -48,7 +53,7 @@ int main(void)
 
     if (listen(sockfd, 5) != 0)
     {
-        printf("Failed to listen: %s\n", strerror(errno));
+        SYS_PRINT(50, "Failed to listen: %s\n", strerror(errno));
         for(;;);
     }
 
@@ -58,18 +63,18 @@ int main(void)
 
         if (connfd < 0)
         {
-            printf("Failed to accept client: %s\n", strerror(errno));
+            SYS_PRINT(50, "Failed to accept client: %s\n", strerror(errno));
             for(;;);
         }
 
-        printf("Accepted client: %d", connfd);
+        SYS_PRINT(32, "Accepted client: %d", connfd);
 
         // Write a "hello" message then terminate the connection
         const char msg[] = "hello\n";
         write(connfd, msg, sizeof(msg));
         close(connfd);
 
-        printf("Closed client %d\n", connfd);
+        SYS_PRINT(32,"Closed client %d\n", connfd);
         break;
     }
     close(sockfd);

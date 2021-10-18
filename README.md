@@ -1,4 +1,7 @@
 # ps4-save-signer
 
 WIP socket server
-If the software is closed and reopened, a client has to try to connect at least once for the ps4 to not show.
+
+Credits
+- [0x199](https://github.com/0x199), for credits formats and util code.
+- [OSM](https://github.com/OSM-Made), for [PS4-Notify](https://github.com/OSM-Made/PS4-Notify) 
