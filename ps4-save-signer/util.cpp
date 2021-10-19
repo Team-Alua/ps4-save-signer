@@ -1,6 +1,8 @@
 // Original: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/util.cpp
 #include "util.h"
 
+#include "string.h"
+#include "stdio.h"
 #include <orbis/libkernel.h>
 
 
