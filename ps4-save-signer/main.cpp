@@ -51,6 +51,15 @@ std::mutex mtx;
 // Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
 
+#define DISP_TEXT(SIZE, ...) { \
+        char * msg = new char[SIZE];\
+        sprintf(msg, __VA_ARGS__);\
+        mtx.lock();\
+        screenTextStream << msg;\
+        mtx.unlock();\
+        sceKernelUsleep(10000);\
+    }
+
 #define NOTIFY_CONST(msg) {\
         system_notification(msg);\
     }
@@ -60,18 +69,6 @@ std::mutex mtx;
         sprintf(error, __VA_ARGS__);\
         system_notification(error);\
     }
-
-
-void threadedFunctionA()
-{
-    for (int count = 0; count < 10; count++)
-    {
-        mtx.lock();
-        screenTextStream << "Thread A is running: " << count << "\n";
-        mtx.unlock();
-        sceKernelUsleep(2 * 100000);
-    }
-}
 
 void serverThread() {
 
@@ -121,19 +118,15 @@ void serverThread() {
 
         if (connfd < 0)
         {
-            // DISP_TEXT(50, "Failed to accept client: %s\n", strerror(errno));
+            DISP_TEXT(50, "Failed to accept client: %s\n", strerror(errno));
             return;
         }
-
-        mtx.lock();
-        screenTextStream << "Accepted client: ";
-        mtx.unlock();
-
+        DISP_TEXT(32, "Accepted client: %d\n", connfd);
         // Write a "hello" message then terminate the connection
         const char msg[] = "hello\n";
         write(connfd, msg, sizeof(msg));
         close(connfd);
-        // DISP_TEXT(32,"Closed client %d\n", connfd);
+        DISP_TEXT(32,"Closed client %d\n", connfd);
     }
     close(sockfd);
 }
@@ -159,6 +152,11 @@ int main(void)
     }
 
 
+    // Set colors
+    bgColor = { 0, 0, 0 };
+    fgColor = { 255, 255, 255 };
+
+
 
     // Initialize the font faces with arial (must be included in the package root!)
     const char *font = "/app0/assets/fonts/Gontserrat-Regular.ttf";
@@ -169,8 +167,10 @@ int main(void)
         for(;;);
     }
 
+    DEBUGLOG << "Entering draw loop...";
+
+    
     std::thread t1(serverThread);
-    std::thread t2(threadedFunctionA);
     for (;;)
     {   
         scene->DrawText((char *) screenTextStream.str().c_str(), fontTxt, 150, 150, bgColor, fgColor);
