@@ -1,9 +1,6 @@
 // Original: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/util.h
 #pragma once
 
-#include <stdio.h>
-#include <string.h>
-
 enum OrbisSystemNotificationType
 {
 	NotificationRequest = 0,

@@ -20,11 +20,16 @@
     <file targ_path="sce_sys/about/right.sprx" orig_path="sce_sys/about/right.sprx" />
     <file targ_path="sce_module/libSceFios2.prx" orig_path="sce_module/libSceFios2.prx" />
     <file targ_path="sce_module/libc.prx" orig_path="sce_module/libc.prx" />
+    <file targ_path="assets/fonts/Gontserrat-Regular.ttf" orig_path="assets/fonts/Gontserrat-Regular.ttf" />
+    <file targ_path="assets/fonts/OFL.txt" orig_path="assets/fonts/OFL.txt" />
   </files>
   <rootdir>
     <dir targ_name="sce_sys">
       <dir targ_name="about" />
     </dir>
     <dir targ_name="sce_module" />
+		<dir targ_name="assets">
+			<dir targ_name="fonts" />
+		</dir>
   </rootdir>
 </psproject>
