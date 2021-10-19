@@ -1,22 +1,12 @@
-#include <sstream>
-#include <iostream>
+
+#include <condition_variable>
 #include <thread>
-#include <orbis/libkernel.h>
-#include <chrono>
+#include "server.h"
+#include "draw.h"
+// Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
-#include "../../_common/graphics.h"
-#include "../../_common/log.h"
-
-
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-
-#include "util.h"
+// Logging
+std::stringstream debugLogStream;
 
 // Dimensions
 #define FRAME_WIDTH     1920
@@ -26,29 +16,8 @@
 // Font information
 #define FONT_SIZE   	   42
 
-// Logging
-// This is necessary, even if it isn't used
-std::stringstream debugLogStream;
-
-
-// Background and foreground colors
-Color bgColor;
-Color fgColor;
-
-// Font faces
-FT_Face fontTxt;
-
-int frameID = 0;
-
-
-std::stringstream screenTextStream;
-
-// Threading stuff
-std::mutex mtx;
-
 
 #define PORT 9025
-// Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
 
 #define DISP_TEXT(SIZE, ...) { \
@@ -60,18 +29,77 @@ std::mutex mtx;
         sceKernelUsleep(10000);\
     }
 
+
 #define NOTIFY_CONST(msg) {\
-        system_notification(msg);\
+        system_notification(msg, "icon_system");\
     }
 
 #define NOTIFY(SIZE, ...) {\
         char error[SIZE];\
         sprintf(error, __VA_ARGS__);\
-        system_notification(error);\
+        system_notification(error, "icon_system");\
     }
 
-void serverThread() {
 
+std::stringstream screenTextStream;
+std::mutex mtx;
+std::atomic<bool> drawReady(false);
+
+
+void drawThread() {
+
+    int rc;
+    int video;
+    int curFrame = 0;
+
+
+    auto scene = new Scene2D(FRAME_WIDTH, FRAME_HEIGHT, FRAME_DEPTH);
+    
+    if(!scene->Init(0xC000000, 2))
+    {
+    	DEBUGLOG << "Failed to initialize 2D scene";
+    	for(;;);
+    }
+    
+    // Background and foreground colors
+    Color bgColor = { 0, 0, 0 };
+    Color fgColor = { 255, 255, 255 };
+
+
+    // Font faces
+    FT_Face fontTxt;
+
+    // Initialize the font faces with arial (must be included in the package root!)
+    const char *font = "/app0/assets/fonts/Gontserrat-Regular.ttf";
+
+    if(!scene->InitFont(&fontTxt, font, FONT_SIZE))
+    {
+    	DEBUGLOG << "Failed to initialize font '" << font << "'";
+        for(;;);
+    }
+
+    DEBUGLOG << "Entering draw loop...";
+
+    drawReady = true; 
+    int frameID = 0;
+    
+    for (;;)
+    {   
+        scene->DrawText((char *) screenTextStream.str().c_str(), fontTxt, 150, 150, bgColor, fgColor);
+        // Submit the frame buffer
+        scene->SubmitFlip(frameID);
+        scene->FrameWait(frameID);
+
+        // Swap to the next buffer
+        scene->FrameBufferSwap();
+        frameID++;
+    }
+}
+
+
+void serverThread() {
+    // Since the server thread relies on this
+    while (!drawReady.load());
     int sockfd;
     int connfd;
     socklen_t addrLen;
@@ -128,58 +156,16 @@ void serverThread() {
         close(connfd);
         DISP_TEXT(32,"Closed client %d\n", connfd);
     }
-    close(sockfd);
 }
-
 
 
 int main(void)
 {
+    
     // No buffering
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    int rc;
-    int video;
-    int curFrame = 0;
-
-
-    auto scene = new Scene2D(FRAME_WIDTH, FRAME_HEIGHT, FRAME_DEPTH);
-    
-    if(!scene->Init(0xC000000, 2))
-    {
-    	NOTIFY_CONST("Failed to initialize 2D scene");
-    	for(;;);
-    }
-
-
-    // Set colors
-    bgColor = { 0, 0, 0 };
-    fgColor = { 255, 255, 255 };
-
-
-
-    // Initialize the font faces with arial (must be included in the package root!)
-    const char *font = "/app0/assets/fonts/Gontserrat-Regular.ttf";
-
-    if(!scene->InitFont(&fontTxt, font, FONT_SIZE))
-    {
-    	NOTIFY(100, "Failed to initialize font '%s'", font);
-        for(;;);
-    }
-
-    DEBUGLOG << "Entering draw loop...";
-
-    
     std::thread t1(serverThread);
-    for (;;)
-    {   
-        scene->DrawText((char *) screenTextStream.str().c_str(), fontTxt, 150, 150, bgColor, fgColor);
-        // Submit the frame buffer
-        scene->SubmitFlip(frameID);
-        scene->FrameWait(frameID);
-
-        // Swap to the next buffer
-        scene->FrameBufferSwap();
-        frameID++;
-    }
+    std::thread t2(drawThread);
+    for(;;); 
 }
