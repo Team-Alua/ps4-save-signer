@@ -2,171 +2,133 @@
 #include <condition_variable>
 #include <thread>
 #include "server.h"
-#include "draw.h"
+#include "util.h"
+#include "errcodes.hpp"
+
+#include <orbis/libkernel.h>
+#include <orbis/UserService.h>
+#include <orbis/SaveData.h>
+
 // Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
 // Logging
 std::stringstream debugLogStream;
 
-// Dimensions
-#define FRAME_WIDTH     1920
-#define FRAME_HEIGHT    1080
-#define FRAME_DEPTH        4
 
-// Font information
-#define FONT_SIZE   	   42
+int32_t getUserId() {
+    int32_t outUserId;
+    sceUserServiceGetInitialUser(&outUserId);
+    return outUserId;
+}
 
+int initializeModules() {
+    OrbisUserServiceInitializeParams params;
 
-#define PORT 9025
+	memset(&params, 0, sizeof(params));
+	params.priority = 700;
 
+    int32_t userServiceResult = sceUserServiceInitialize(&params);
 
-#define DISP_TEXT(SIZE, ...) { \
-        char * msg = new char[SIZE];\
-        sprintf(msg, __VA_ARGS__);\
-        mtx.lock();\
-        screenTextStream << msg;\
-        mtx.unlock();\
-        sceKernelUsleep(10000);\
-    }
-
-
-#define NOTIFY_CONST(msg) {\
-        system_notification(msg, "icon_system");\
-    }
-
-#define NOTIFY(SIZE, ...) {\
-        char error[SIZE];\
-        sprintf(error, __VA_ARGS__);\
-        system_notification(error, "icon_system");\
-    }
-
-
-std::stringstream screenTextStream;
-std::mutex mtx;
-std::atomic<bool> drawReady(false);
-
-
-void drawThread() {
-
-    int rc;
-    int video;
-    int curFrame = 0;
-
-
-    auto scene = new Scene2D(FRAME_WIDTH, FRAME_HEIGHT, FRAME_DEPTH);
-    
-    if(!scene->Init(0xC000000, 2))
-    {
-    	DEBUGLOG << "Failed to initialize 2D scene";
-    	for(;;);
+    if (userServiceResult != 0) {
+        printf("Failed to initialize user service %d", userServiceResult);
+        return -1;
     }
     
-    // Background and foreground colors
-    Color bgColor = { 0, 0, 0 };
-    Color fgColor = { 255, 255, 255 };
+    int32_t saveDataInitializeResult = sceSaveDataInitialize3(0);
 
-
-    // Font faces
-    FT_Face fontTxt;
-
-    // Initialize the font faces with arial (must be included in the package root!)
-    const char *font = "/app0/assets/fonts/Gontserrat-Regular.ttf";
-
-    if(!scene->InitFont(&fontTxt, font, FONT_SIZE))
-    {
-    	DEBUGLOG << "Failed to initialize font '" << font << "'";
-        for(;;);
+    if (saveDataInitializeResult != 0) {
+        printf("Failed to initialize save data library %d", saveDataInitializeResult);
+        return -1;
     }
-
-    DEBUGLOG << "Entering draw loop...";
-
-    drawReady = true; 
-    int frameID = 0;
-    
-    for (;;)
-    {   
-        scene->DrawText((char *) screenTextStream.str().c_str(), fontTxt, 150, 150, bgColor, fgColor);
-        // Submit the frame buffer
-        scene->SubmitFlip(frameID);
-        scene->FrameWait(frameID);
-
-        // Swap to the next buffer
-        scene->FrameBufferSwap();
-        frameID++;
-    }
+    return 0;
 }
 
 
-void serverThread() {
-    // Since the server thread relies on this
-    while (!drawReady.load());
-    int sockfd;
-    int connfd;
-    socklen_t addrLen;
+bool(*jailbreak)();
 
-    struct sockaddr_in serverAddr;
-    struct sockaddr_in clientAddr;
-
-        // Create a server socket
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (sockfd < 0)
-    {
-        // NOTIFY(50, "Failed to create socket: %s\n", strerror(errno));
-        return;
-    }
-
-    // Bind to 0.0.0.0:PORT
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddr.sin_port = htons(PORT);
-
-    // Fixes issue where it would not accept the same address after it was closed
-    //  NOTIFY(100, "Attempting to bind to bind!");
-    while (bind(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
-        sceKernelUsleep(20000);
-    }
-    //  NOTIFY(100, "Success!");
-
-    // Listen and accept clients
-    addrLen = sizeof(clientAddr);
-
-    if (listen(sockfd, 5) != 0)
-    {
-        NOTIFY(50, "Failed to listen: %s\n", strerror(errno));
-        return;
-    }
-
-    
-    NOTIFY_CONST("Now listening...\n");
-    for (;;)
-    {
-        connfd = accept(sockfd, (struct sockaddr*)&clientAddr, &addrLen);
-
-        if (connfd < 0)
-        {
-            DISP_TEXT(50, "Failed to accept client: %s\n", strerror(errno));
-            return;
-        }
-        DISP_TEXT(32, "Accepted client: %d\n", connfd);
-        // Write a "hello" message then terminate the connection
-        const char msg[] = "hello\n";
-        write(connfd, msg, sizeof(msg));
-        close(connfd);
-        DISP_TEXT(32,"Closed client %d\n", connfd);
-    }
+int resolveDynamicLinks() {
+	// https://github.com/sleirsgoevy/ps4-libjbc
+	int libjbc = sceKernelLoadStartModule("/app0/sce_module/libjbc.sprx", 0, NULL, 0, NULL, NULL);
+	if (libjbc == 0) {
+		printf("sceKernelLoadStartModule() failed to load module %s\n", "libjbc.sprx");
+		return -1;
+	}
+	
+    sceKernelDlsym(libjbc, "Jailbreak", (void**)&jailbreak);
+	if(jailbreak == nullptr) {
+		printf("Failed to resolve symbol: %s\n", "Jailbreak");
+		return -1;
+	}
+    return 0;
 }
 
+
+int deleteAllSavesForUser() {
+
+    int32_t result = sceSaveDataDeleteAllUser();
+    printf("sceSaveDataDeleteAllUser ret=%d\n", result);
+    return 0;
+}
 
 int main(void)
 {
-    
     // No buffering
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    std::thread t1(serverThread);
-    std::thread t2(drawThread);
+    do {
+        if (initializeModules() != 0) {
+            break;
+        }
+
+        if (resolveDynamicLinks() != 0) {
+            break;
+        }
+        
+
+        OrbisSaveDataMount * a = new OrbisSaveDataMount;
+        memset(a, 0, sizeof(OrbisSaveDataMount));
+        a->userId = getUserId();
+        a->dirName = (char *) "data0000";
+        a->fingerprint = (char *) "0000000000000000000000000000000000000000000000000000000000000000";
+        a->titleId = (char *) "BREW00085";
+        a->blocks = 32768;
+        a->mountMode = 1;
+        
+
+        OrbisSaveDataMountResult * b = new OrbisSaveDataMountResult;
+        memset(b, 0, sizeof(OrbisSaveDataMountResult));
+
+        int32_t mountErrorCode = sceSaveDataMount(a, b);
+        if (mountErrorCode != 0) {
+            delete a;
+            delete b;
+            char msg[100];
+            memset(msg, 0, 100);
+            snprintf(msg, 100, "sceSaveDataMount ret=%s\n", errorCodeToString(mountErrorCode));
+            NOTIFY_CONST(msg);
+            break;
+        }
+        OrbisSaveDataUMount * c = new OrbisSaveDataUMount;
+        memset(c, 0, sizeof(OrbisSaveDataUMount));
+
+        memcpy(c->mountPathName, b->mountPathName, sizeof(b->mountPathName));
+        int32_t umountErrorCode = sceSaveDataUmount(c);
+        if (umountErrorCode != 0) {
+            delete c;
+            char msg[100];
+            memset(msg, 0, 100);
+            snprintf(msg, 100, "sceSaveDataUmount ret=%s\n", errorCodeToString(umountErrorCode));
+            NOTIFY_CONST(msg);
+            break;
+        }
+
+        delete a;
+        delete b;
+        delete c;
+
+    } while (false);
+
+    // sceSaveDataUmount();
+    
     for(;;); 
 }
-// 
