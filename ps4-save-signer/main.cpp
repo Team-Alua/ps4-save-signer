@@ -1,6 +1,7 @@
 
 #include <condition_variable>
 #include <thread>
+#include "define_headers.h"
 #include "server.h"
 #include "util.h"
 #include "errcodes.hpp"
@@ -62,12 +63,75 @@ int resolveDynamicLinks() {
     return 0;
 }
 
+void thread1() {
+    if (initializeModules() != 0) {
+        return;
+    }
 
-int deleteAllSavesForUser() {
+    if (resolveDynamicLinks() != 0) {
+        return;
+    }
+    jailbreak();
+    do {
+        sceKernelSleep(3);
+        OrbisSaveDataMount mount;
+        memset(&mount, 0, sizeof(OrbisSaveDataMount));
+        
+        char dirName[32];
+        memset(dirName, 0, sizeof(dirName));
+        strcpy(dirName, "data0000");
 
-    int32_t result = sceSaveDataDeleteAllUser();
-    printf("sceSaveDataDeleteAllUser ret=%d\n", result);
-    return 0;
+        char fingerprint[80];
+        memset(fingerprint, 0, sizeof(fingerprint));
+        strcpy(fingerprint, "0000000000000000000000000000000000000000000000000000000000000000");
+
+        char titleId[16];
+        memset(titleId, 0, sizeof(titleId));
+        strcpy(titleId, "BREW00085");
+
+        mount.userId = getUserId();
+        mount.dirName = dirName;
+        mount.fingerprint = fingerprint;
+        mount.titleId = titleId;
+        mount.blocks = 114;
+        mount.mountMode = 8 | 2;
+        
+        OrbisSaveDataMountResult mountResult;
+        memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
+
+        int32_t mountErrorCode = sceSaveDataMount(&mount, &mountResult);
+        if (mountErrorCode != 0) {
+            char msg[100];
+            memset(msg, 0, 100);
+            snprintf(msg, 100, "sceSaveDataMount ret=%s\n", errorCodeToString(mountErrorCode));
+            NOTIFY_CONST(msg);
+            continue;
+        }
+
+        OrbisSaveDataUMount umount;
+        memset(&umount, 0, sizeof(OrbisSaveDataUMount));
+
+        memcpy(umount.mountPathName, mountResult.mountPathName, sizeof(mountResult.mountPathName));
+        int32_t umountErrorCode = sceSaveDataUmount(&umount);
+        
+        if (umountErrorCode != 0) {
+            char msg[100];
+            memset(msg, 0, 100);
+            snprintf(msg, 100, "sceSaveDataUmount ret=%s\n", errorCodeToString(umountErrorCode));
+            NOTIFY_CONST(msg);
+            continue;
+        }
+        // sceKernelSleep(1);
+        
+        // int32_t deleteUserSaves = sceSaveDataDelelte(mount);
+        // if (deleteUserSaves < 0) {
+        //     char msg[100];
+        //     memset(msg, 0, 100);
+        //     snprintf(msg, 100, "sceSaveDataDeleteUser ret=%s\n", errorCodeToString(deleteUserSaves));
+        //     NOTIFY_CONST(msg);
+        //     continue;
+        // }
+    } while (true);
 }
 
 int main(void)
@@ -75,60 +139,7 @@ int main(void)
     // No buffering
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    do {
-        if (initializeModules() != 0) {
-            break;
-        }
-
-        if (resolveDynamicLinks() != 0) {
-            break;
-        }
-        
-
-        OrbisSaveDataMount * a = new OrbisSaveDataMount;
-        memset(a, 0, sizeof(OrbisSaveDataMount));
-        a->userId = getUserId();
-        a->dirName = (char *) "data0000";
-        a->fingerprint = (char *) "0000000000000000000000000000000000000000000000000000000000000000";
-        a->titleId = (char *) "BREW00085";
-        a->blocks = 32768;
-        a->mountMode = 1;
-        
-
-        OrbisSaveDataMountResult * b = new OrbisSaveDataMountResult;
-        memset(b, 0, sizeof(OrbisSaveDataMountResult));
-
-        int32_t mountErrorCode = sceSaveDataMount(a, b);
-        if (mountErrorCode != 0) {
-            delete a;
-            delete b;
-            char msg[100];
-            memset(msg, 0, 100);
-            snprintf(msg, 100, "sceSaveDataMount ret=%s\n", errorCodeToString(mountErrorCode));
-            NOTIFY_CONST(msg);
-            break;
-        }
-        OrbisSaveDataUMount * c = new OrbisSaveDataUMount;
-        memset(c, 0, sizeof(OrbisSaveDataUMount));
-
-        memcpy(c->mountPathName, b->mountPathName, sizeof(b->mountPathName));
-        int32_t umountErrorCode = sceSaveDataUmount(c);
-        if (umountErrorCode != 0) {
-            delete c;
-            char msg[100];
-            memset(msg, 0, 100);
-            snprintf(msg, 100, "sceSaveDataUmount ret=%s\n", errorCodeToString(umountErrorCode));
-            NOTIFY_CONST(msg);
-            break;
-        }
-
-        delete a;
-        delete b;
-        delete c;
-
-    } while (false);
-
-    // sceSaveDataUmount();
+    std::thread t1(thread1);
     
     for(;;); 
 }
