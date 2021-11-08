@@ -5,14 +5,14 @@ TITLE_ID    := BREW00085
 CONTENT_ID  := IV0000-BREW00085_00-SAVESIGNER000000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceFreeType
+LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceUserService -lSceSaveData -lSceFreeType
 
 # Additional compile flags.
 EXTRAFLAGS  := -DGRAPHICS_USES_FONT
 
 # Asset and module directories.
-ASSETS 		:= $(wildcard assets/**/*)
-LIBMODULES  := $(wildcard sce_module/*)
+ASSETS 		:= $(wildcard pkg/assets/**/*)
+LIBMODULES  := $(wildcard pkg/sce_module/*)
 
 # You likely won't need to touch anything below this point.
 
@@ -29,8 +29,8 @@ COMMONFILES := $(wildcard $(COMMONDIR)/*.cpp)
 OBJS        := $(patsubst $(PROJDIR)/%.c, $(INTDIR)/%.o, $(CFILES)) $(patsubst $(PROJDIR)/%.cpp, $(INTDIR)/%.o, $(CPPFILES)) $(patsubst $(COMMONDIR)/%.cpp, $(INTDIR)/%.o, $(COMMONFILES))
 
 # Define final C/C++ flags
-CFLAGS      := -cc1 -triple x86_64-pc-freebsd-elf -munwind-tables -fuse-init-array -debug-info-kind=limited -debugger-tuning=gdb -emit-obj $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
-CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1
+CFLAGS      := -cc1 -triple x86_64-pc-freebsd-elf -munwind-tables -fuse-init-array -debug-info-kind=limited -debugger-tuning=sce -emit-obj $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
+CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -I$(TOOLCHAIN)/src/lib
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
 # Create the intermediate directory incase it doesn't already exist.
@@ -52,15 +52,21 @@ ifeq ($(UNAME_S),Darwin)
 		CDIR    := macos
 endif
 
-all: $(CONTENT_ID).pkg
+all: clean $(CONTENT_ID).pkg
 
-$(CONTENT_ID).pkg: pkg.gp4
+pkg/eboot.bin: $(INTDIR) $(OBJS)
+	$(LD) $(INTDIR)/*.o -o $(INTDIR)/$(PROJDIR).elf $(LDFLAGS)
+	$(TOOLCHAIN)/bin/$(CDIR)/create-eboot -in=$(INTDIR)/$(PROJDIR).elf -out=$(INTDIR)/$(PROJDIR).oelf --paid 0x3800000000000011
+	mv eboot.bin pkg/eboot.bin
+
+
+$(CONTENT_ID).pkg: pkg/pkg.gp4
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core pkg_build $< .
 
-pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png $(LIBMODULES) $(ASSETS)
-	$(TOOLCHAIN)/bin/$(CDIR)/create-gp4 -out $@ --content-id=$(CONTENT_ID) --files "$^"
+pkg/pkg.gp4: pkg/eboot.bin pkg/sce_sys/about/right.sprx pkg/sce_sys/param.sfo pkg/sce_sys/icon0.png $(LIBMODULES) $(ASSETS)
+	cd pkg && $(TOOLCHAIN)/bin/$(CDIR)/create-gp4 -out $(shell echo "$@" | sed -e 's/pkg\///g') --content-id=$(CONTENT_ID) --files "$(shell echo "$^" | sed -e 's/pkg\///g')"
 
-sce_sys/param.sfo: Makefile
+pkg/sce_sys/param.sfo: Makefile
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_new $@
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ APP_TYPE --type Integer --maxsize 4 --value 1 
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ APP_VER --type Utf8 --maxsize 8 --value '$(VERSION)'
@@ -72,10 +78,6 @@ sce_sys/param.sfo: Makefile
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ TITLE --type Utf8 --maxsize 128 --value '$(TITLE)'
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ TITLE_ID --type Utf8 --maxsize 12 --value '$(TITLE_ID)'
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ VERSION --type Utf8 --maxsize 8 --value '$(VERSION)'
-
-eboot.bin: $(INTDIR) $(OBJS)
-	$(LD) $(INTDIR)/*.o -o $(INTDIR)/$(PROJDIR).elf $(LDFLAGS)
-	$(TOOLCHAIN)/bin/$(CDIR)/create-eboot -in=$(INTDIR)/$(PROJDIR).elf -out=$(INTDIR)/$(PROJDIR).oelf --paid 0x3800000000000011
 
 $(INTDIR)/%.o: $(PROJDIR)/%.c
 	$(CC) $(CFLAGS) -o $@ $<
@@ -90,5 +92,5 @@ $(INTDIR)/%.o: $(COMMONDIR)/%.cpp
 	$(CCX) $(CXXFLAGS) -o $@ $<
 
 clean:
-	rm -f $(CONTENT_ID).pkg pkg.gp4 pkg/sce_sys/param.sfo eboot.bin \
+	rm -f $(CONTENT_ID).pkg pkg/pkg.gp4 pkg/sce_sys/param.sfo pkg/eboot.bin \
 		$(INTDIR)/$(PROJDIR).elf $(INTDIR)/$(PROJDIR).oelf $(OBJS)
