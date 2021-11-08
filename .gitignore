@@ -36,3 +36,4 @@ ps4-save-signer/x64
 release/
 pkg/eboot.bin
 .vscode/
+scripts/
