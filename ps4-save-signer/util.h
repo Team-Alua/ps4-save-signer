@@ -1,4 +1,6 @@
 // Original: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/util.h
+#include <stdint.h>
+
 #pragma once
 
 enum OrbisSystemNotificationType
@@ -62,3 +64,8 @@ int system_notification(const char* text, const char* iconName = "icon_system");
         system_notification(error, "icon_system");\
     }
 
+int resolveDynamicLinks();
+int initializeModules();
+int32_t getUserId();
+
+extern bool (*jailbreak)();

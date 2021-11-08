@@ -1,7 +1,13 @@
 #include "server.h"
+#include "cmd_utils.hpp"
+#include "cmd_constants.hpp"
+#include "cmd_uploadfile.hpp"
+#include "cmd_savegen.hpp"
 
 #define PORT 9025
 
+
+void clientHandler(int connfd);
 
 void serverThread() {
     int sockfd;
@@ -11,7 +17,7 @@ void serverThread() {
     struct sockaddr_in serverAddr;
     struct sockaddr_in clientAddr;
 
-        // Create a server socket
+    // Create a server socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd < 0)
@@ -43,22 +49,45 @@ void serverThread() {
 
     
     NOTIFY_CONST("Now listening...\n");
-    for (;;)
-    {
+    for (;;) {
         connfd = accept(sockfd, (struct sockaddr*)&clientAddr, &addrLen);
-
-        if (connfd < 0)
-        {
-
-            debugLogStream <<  "Failed to accept client: " << strerror(errno) << "\n";
+        if (connfd < 0) {
             return;
         }
-        debugLogStream <<  "Accepted client: " << connfd << "\n";
-
-        // Write a "hello" message then terminate the connection
-        const char msg[] = "hello\n";
-        write(connfd, msg, sizeof(msg));
-        close(connfd);
-        debugLogStream <<  "Closed client: " << connfd << "\n";
+        std::thread clientThread(clientHandler, connfd);
+        clientThread.detach();
     }
+}
+
+
+void clientHandler(int connfd) {
+    sendStatusCode(connfd, CMD_STATUS_READY);
+
+    while (true) {
+        PacketHeader pHeader;
+
+        // automatically close because
+        // connection is probably broken
+        if (getPacketHeader(connfd, &pHeader) != CMD_STATUS_READY) {
+            break;
+        }
+
+        switch (pHeader.cmd) {
+            case CMD_UPLOAD_FILE: {
+                handleUploadFile(connfd, &pHeader);
+                break;
+            }
+            case CMD_SAVE_GEN: {
+                handleSaveGenerating(connfd, &pHeader);
+                break;
+            }
+            default: {
+                sendStatusCode(connfd, CMD_IS_INVALID);
+                break;
+            }
+
+        }
+    }
+    sceKernelSleep(5);
+    close(connfd);
 }

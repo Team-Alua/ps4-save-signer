@@ -27,9 +27,18 @@ struct OrbisSaveDataUMount
     char mountPathName[0x10];
 };
 
+struct OrbisSaveDataDelete {
+	int32_t userId;
+	int32_t unknown1; 
+	const char *titleId; 
+	const char *dirName; 
+	uint8_t reserved[32];
+	int32_t unknown2;
+};
+
 extern "C" {
     int32_t sceSaveDataInitialize3(int32_t initParams);
     int32_t sceSaveDataMount(OrbisSaveDataMount*, OrbisSaveDataMountResult*);
     int32_t sceSaveDataUmount(OrbisSaveDataUMount *);
-    int32_t sceSaveDataDeleteUser(int32_t userId);
+	int32_t sceSaveDataDelete(OrbisSaveDataDelete *del);
 }

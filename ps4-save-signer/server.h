@@ -1,6 +1,7 @@
 #pragma once
 #include <stdio.h>
 #include <string.h>
+#include <thread>
 #include <unistd.h>
 #include <errno.h>
 #include <netinet/in.h>
@@ -14,3 +15,6 @@
 
 #include "util.h"
 
+
+
+void serverThread();
