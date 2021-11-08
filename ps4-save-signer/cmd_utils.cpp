@@ -131,7 +131,7 @@ int recursiveCopy(const char * sourceDirectoryPath, const char * targetDirectory
             strcpy(targetPath, targetDirectoryPath);
             strcat(targetPath, file->d_name);
 
-            int sourceFd = open(sourcePath, O_RDONLY);
+            int sourceFd = open(sourcePath, O_RDONLY, 0);
 
             if (sourceFd < 0) {
                 success = false;
@@ -175,6 +175,8 @@ int recursiveCopy(const char * sourceDirectoryPath, const char * targetDirectory
                     break;
                 }
             }
+            
+            fsync(targetFd);
             close(sourceFd);
             close(targetFd);
             if (!success) {
