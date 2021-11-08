@@ -12,8 +12,6 @@ struct __attribute((packed)) SaveGeneratorPacket {
 static void doSaveGenerator(int, SaveGeneratorPacket *);
 
 
-
-
 void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
     sendStatusCode(connfd, CMD_STATUS_READY);
 
@@ -83,13 +81,16 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         strcat(targetDirectory, mountResult.mountPathName);
         strcat(targetDirectory, "/");
 
-        recursiveDelete(targetDirectory);
 
+        // use sceSaveDataSetParam since it's much easier 
+        // use sceSaveDataSetIcon also
+        // only thing needed to copy is the keystone file
         bool success = false;
         do {
             if (recursiveCopy(templateFolder, targetDirectory) != 0) {
                 break;
             }
+
             if (recursiveCopy(copyFolder, targetDirectory) != 0) {
                 break;
             }

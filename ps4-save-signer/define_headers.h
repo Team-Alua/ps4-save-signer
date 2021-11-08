@@ -41,4 +41,5 @@ extern "C" {
     int32_t sceSaveDataMount(OrbisSaveDataMount*, OrbisSaveDataMountResult*);
     int32_t sceSaveDataUmount(OrbisSaveDataUMount *);
 	int32_t sceSaveDataDelete(OrbisSaveDataDelete *del);
+	int32_t sceSaveDataSetParam(char * mountPoint, uint32_t type, void * buffer, size_t bufferSize);
 }
