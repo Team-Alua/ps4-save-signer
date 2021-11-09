@@ -161,15 +161,18 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             sendStatusCode(connfd, CMD_STATUS_READY);
             recursiveDelete(copyFolder);
 
-            std::vector<std::string> files;
+            std::vector<std::string> inFiles;
+            std::vector<std::string> outFiles;
             char baseDirectory[256];
 
             char pfsPath[256];
             char binPath[256];
+            char binOutPath[256];
             
             memset(baseDirectory, 0, sizeof(baseDirectory));
             memset(pfsPath, 0, sizeof(pfsPath));
             memset(binPath, 0, sizeof(binPath));
+            memset(binOutPath, 0, sizeof(binOutPath));
 
             sprintf(baseDirectory,"/user/home/%x/savedata/", getUserId());
             
@@ -178,13 +181,21 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             strcat(pfsPath, saveGenPacket->dirName);
             strcat(pfsPath, ".bin");
 
+
             strcpy(binPath, saveGenPacket->titleId);
             strcat(binPath, "/sdimg_");
             strcat(binPath, saveGenPacket->dirName);
 
-            files.push_back(std::string(pfsPath));
-            files.push_back(std::string(binPath));
-            transferFiles(connfd, baseDirectory, files);
+            strcpy(binOutPath, saveGenPacket->titleId);
+            strcat(binOutPath, "/");
+            strcat(binOutPath, saveGenPacket->dirName);
+
+            inFiles.push_back(std::string(pfsPath));
+            outFiles.push_back(std::string(pfsPath));
+            inFiles.push_back(std::string(binPath));
+            outFiles.push_back(std::string(binOutPath));
+
+            transferFiles(connfd, baseDirectory, inFiles, outFiles);
         } else {
             sendStatusCode(connfd, saveModError);
         }

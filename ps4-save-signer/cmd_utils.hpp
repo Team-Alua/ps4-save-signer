@@ -35,6 +35,6 @@ int recursiveCopy(const char * sourceDirectoryPath, const char * targetDirectory
 
 int recursiveDelete(const char * sourceDirectoryPath);
 
-int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths);
+int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths);
 
 int transferFile(int connfd, int fd, size_t size);

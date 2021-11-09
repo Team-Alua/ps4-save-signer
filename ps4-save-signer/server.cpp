@@ -3,7 +3,7 @@
 #include "cmd_constants.hpp"
 #include "cmd_uploadfile.hpp"
 #include "cmd_savegen.hpp"
-
+#include "cmd_deletedir.hpp"
 #define PORT 9025
 
 
@@ -79,6 +79,10 @@ void clientHandler(int connfd) {
             }
             case CMD_SAVE_GEN: {
                 handleSaveGenerating(connfd, &pHeader);
+                break;
+            }
+            case CMD_DELETE_UPLOAD_DIRECTORY: {
+                handleDirectoryDelete(connfd, &pHeader);
                 break;
             }
             default: {

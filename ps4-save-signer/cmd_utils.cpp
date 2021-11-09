@@ -26,7 +26,7 @@ size_t readFull(int connfd, void * buffer, size_t size) {
 }
 
 int getPacketHeader(int connfd, PacketHeader * packetHeader) {
-    ssize_t resultCode = read(connfd, packetHeader, sizeof(PacketHeader));
+    ssize_t resultCode = readFull(connfd, packetHeader, sizeof(PacketHeader));
     if (resultCode < 0) {
         return UNEXPECTED_ERROR;
     }
@@ -93,8 +93,8 @@ int recursiveDelete(const char * sourceDirectoryPath) {
         if (copyResult != 0) {
             return copyResult;
         }
-        remove(newSourceDirectory);
     }
+    remove(sourceDirectoryPath);
     return 0;
 }
 
@@ -282,21 +282,17 @@ long getFileSize(const char *filename)
 }
 
 
-int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths) {
+int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths) {
     uint8_t fileCount = (uint8_t)relFilePaths.size();
     // send file count
     write(connfd, &fileCount, sizeof(uint8_t));
+    for(uint32_t i = 0; i < fileCount; i++) {
+        std::string & inPath = relFilePaths[i];
 
-    for (std::string relFilePath: relFilePaths) {
-        
-
-        // size of relative file path (8 byte)
-        size_t filePathLength = relFilePath.size();
-        
         char fullFilePath[256];
         memset(fullFilePath, 0, sizeof(fullFilePath));
         strcpy(fullFilePath, baseDirectory);
-        strcat(fullFilePath, relFilePath.c_str());
+        strcat(fullFilePath, inPath.c_str());
 
 
 
@@ -320,13 +316,17 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
             continue;
         }
         
+        std::string & outPath = outPaths[i];
+        // size of relative file path (8 byte)
+        size_t filePathLength = outPath.size();
+
         sendStatusCode(connfd, CMD_STATUS_READY);
 
         write(connfd, &filePathLength, sizeof(filePathLength));
 
         write(connfd, &fileSize, sizeof(fileSize));
 
-        write(connfd, relFilePath.c_str(), relFilePath.size());
+        write(connfd, outPath.c_str(), outPath.size());
         
         transferFile(connfd, fd , fileSize);
 
