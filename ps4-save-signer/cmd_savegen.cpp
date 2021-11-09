@@ -4,9 +4,11 @@
 #include <string>
 
 struct __attribute((packed)) SaveGeneratorPacket {
+    uint64_t psnAccountId;
     char dirName[0x20];
     char titleId[0x10];
     char copyDirectory[0x30];
+    OrbisSaveDataParam saveParams;
 };
 
 static void doSaveGenerator(int, SaveGeneratorPacket *);
@@ -24,6 +26,40 @@ void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
     }
 
     doSaveGenerator(connfd, &uploadPacket);
+}
+
+static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId) {
+    char paramSfoPath[256];
+    memset(paramSfoPath, 0, sizeof(paramSfoPath));
+    strcpy(paramSfoPath, baseMountDirectory);
+    strcat(paramSfoPath, "sce_sys/param.sfo");
+    int fd = open(paramSfoPath, O_RDWR, 0);
+    if (fd < 0) {
+        NOTIFY(300, "Failed to load %s %d", paramSfoPath, errno);
+        return false;
+    }
+    uint8_t tryCount = 10;
+    bool success = false;
+    do {
+        off_t fileSize = lseek(fd, 0x15C, SEEK_SET);
+        if (fileSize == -1) {
+            NOTIFY(300, "Failed to seek to 0x15C for %s", paramSfoPath);
+            break;
+        }
+        ssize_t written = write(fd, &accountId, sizeof(accountId));
+        if (written == sizeof(accountId)) {
+            success = true;
+            break;
+        }
+        tryCount--;
+        if (tryCount == 0) {
+            NOTIFY(300, "Failed to write 10 times for %s", paramSfoPath);
+            break;
+        }
+    } while (true);
+    fsync(fd);
+    close(fd);
+    return success;
 }
 
 
@@ -82,11 +118,24 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         strcat(targetDirectory, "/");
 
 
-        // use sceSaveDataSetParam since it's much easier 
-        // use sceSaveDataSetIcon also
-        // only thing needed to copy is the keystone file
         bool success = false;
+        uint32_t saveModError = CMD_SAVE_GEN_PARMSFO_MOD_FAILED;
         do {
+            if (!changeSaveAccountId(targetDirectory, saveGenPacket->psnAccountId)) {
+                NOTIFY_CONST("Failed to change save account id");
+                break;
+            }
+
+            memset(&saveGenPacket->saveParams.unknown1, 0, sizeof(saveGenPacket->saveParams.unknown1));
+            memset(&saveGenPacket->saveParams.unknown2, 0, sizeof(saveGenPacket->saveParams.unknown2));
+            saveGenPacket->saveParams.mtime = time(NULL);
+
+            int32_t setParamResult = sceSaveDataSetParam(mountResult.mountPathName, 0, &saveGenPacket->saveParams, sizeof(saveGenPacket->saveParams));
+            if (setParamResult < 0) {
+                NOTIFY(300 , "sceSaveDataSetParam error=%s", errorCodeToString(setParamResult));
+                break;
+            }
+            saveModError = CMD_SAVE_GEN_COPY_FOLDER_FAILED;
             if (recursiveCopy(templateFolder, targetDirectory) != 0) {
                 break;
             }
@@ -137,7 +186,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             files.push_back(std::string(binPath));
             transferFiles(connfd, baseDirectory, files);
         } else {
-            sendStatusCode(connfd, CMD_SAVE_GEN_COPY_FOLDER_FAILED);
+            sendStatusCode(connfd, saveModError);
         }
 
 

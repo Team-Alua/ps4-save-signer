@@ -1,5 +1,5 @@
 import os
-
+import struct
 import socket
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(('10.0.0.4', 9025))
@@ -41,13 +41,22 @@ def sendFile(filepath, targetpath):
     pass
 
 
-def createSaveGenHeader(dirName: str, titleId: str, copyDirectory: str):
-    dataArr = dirName.ljust(0x20, "\x00").encode()
-    dataArr += titleId.ljust(0x10, "\x00").encode()
-    dataArr += copyDirectory.ljust(0x30, "\x00").encode()
+def createSaveGenHeader(entries: dict):
+    dataArr = struct.pack("<Q", entries["psnAccountId"])
+    dataArr += entries["dirName"].ljust(0x20, "\x00").encode()
+    dataArr += entries["titleId"].ljust(0x10, "\x00").encode()
+    dataArr += entries["copyDirectory"].ljust(0x30, "\x00").encode()
+    dataArr += entries["title"].ljust(0x80, "\x00").encode()
+    dataArr += entries["subtitle"].ljust(0x80, "\x00").encode()
+    dataArr += entries["details"].ljust(0x400, "\x00").encode()
+    dataArr += struct.pack("<L", entries.get("userParam", 0))
+    dataArr += struct.pack("<L", 0) # unknown1
+    dataArr += struct.pack("<q", 0) # mtime
+    dataArr += b"\x00" * 0x20 # unknown2
     return dataArr
 
-def receiveSave(out_dir):
+def receiveSave(userName: str, psnId: int, dirName: str):
+    out_dir = r"Z:\PS4\SAVEDATA\{}\ ".format(hex(psnId)[2:]).strip()
     
     os.makedirs(out_dir, exist_ok=True)
     
@@ -59,7 +68,15 @@ def receiveSave(out_dir):
         print(hex(statusCode))
         return
 
-    dataArr = createSaveGenHeader("data0000", "CUSA04943", "test0123")
+    dataArr = createSaveGenHeader({
+        "psnAccountId": psnId,
+        "dirName": dirName,
+        "titleId": "CUSA03694",
+        "copyDirectory": "test0123",
+        "title": "{} Save".format(userName),
+        "subtitle": "Kat Gravity Rush",
+        "details": "When the imposter is sus"
+    })
     client.send(dataArr)
     
     # check the headers were okay
@@ -107,6 +124,7 @@ def receiveSave(out_dir):
         print(hex(statusCode))
         return
     
-
-sendFile(r"data0000.bin", "test0123/data0000.bin")
-receiveSave(r"Z:\PS4\SAVEDATA\5e8f03d08be1dbbc\ ".strip())
+dirName = "data0013"
+sendFile(r"data0000.txt", "test0123/{}.bin".format(dirName))
+sendFile(r"icon0.png", "test0123/sce_sys/icon0.png")
+receiveSave("ac2pic", 0x5e8f03d08be1dbbc, dirName)

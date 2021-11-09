@@ -1,4 +1,6 @@
 #include <cinttypes>
+#include <time.h>
+#include <stdint.h>
 #pragma once
 
 typedef struct __attribute__((packed)) OrbisSaveDataMount {
@@ -34,6 +36,17 @@ struct OrbisSaveDataDelete {
 	const char *dirName; 
 	uint8_t reserved[32];
 	int32_t unknown2;
+};
+
+struct  __attribute((packed)) OrbisSaveDataParam
+{
+    char title[0x80];
+    char subtitle[0x80];
+    char details[0x400];
+    uint32_t userParam;
+    uint32_t unknown1;
+    time_t mtime;
+    char unknown2[0x20];
 };
 
 extern "C" {
