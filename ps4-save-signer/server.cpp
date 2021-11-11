@@ -4,12 +4,16 @@
 #include "cmd_uploadfile.hpp"
 #include "cmd_savegen.hpp"
 #include "cmd_deletedir.hpp"
+#include "signal.h"
 #define PORT 9025
 
 
 void clientHandler(int connfd);
 
 void serverThread() {
+    // Don't crash when writing to a closed connection
+    signal(SIGPIPE, SIG_IGN);
+    
     int sockfd;
     int connfd;
     socklen_t addrLen;
@@ -92,6 +96,5 @@ void clientHandler(int connfd) {
 
         }
     }
-    sceKernelSleep(5);
     close(connfd);
 }

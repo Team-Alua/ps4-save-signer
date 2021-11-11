@@ -72,7 +72,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         strcat(templateFolder, "/");
         if (!directoryExists(templateFolder)) {
             sendStatusCode(connfd, CMD_SAVE_GEN_TITLE_ID_UNSUPPORTED);
-            return;
+            break;
         }
 
         char copyFolder[256];
@@ -83,7 +83,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
 
         if (!directoryExists(copyFolder)) {
             sendStatusCode(connfd, CMD_SAVE_GEN_COPY_FOLDER_NOT_FOUND);
-            return;
+            break;
         }
         sendStatusCode(connfd, CMD_STATUS_READY);
 
@@ -108,7 +108,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         int32_t mountErrorCode = sceSaveDataMount(&mount, &mountResult);
         if (mountErrorCode < 0) {
             sendStatusCode(connfd, CMD_SAVE_GEN_MOUNT_ERROR);
-            return;
+            break;
         }
  
         char targetDirectory[256];
@@ -154,7 +154,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         
         if (umountErrorCode < 0) {
             sendStatusCode(connfd, CMD_SAVE_GEN_UMOUNT_ERROR);
-            return;
+            break;
         }
         
         if (success) {
@@ -209,7 +209,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         int32_t deleteUserSaves = sceSaveDataDelete(&del);
         if (deleteUserSaves < 0) {
             sendStatusCode(connfd, CMD_SAVE_GEN_DELETE_MOUNT_ERROR);
-            return;
+            break;
         }
 
         sendStatusCode(connfd, CMD_STATUS_READY);
