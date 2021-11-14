@@ -33,7 +33,7 @@ def sendFile(filepath, targetpath):
     
     client.send(targetpath.encode())
     client.send(len(data).to_bytes(4, "little"))
-    client.send(data)
+    client.sendall(data)
     statusCode = getStatusCode()
     if statusCode != 0x80000001:
         print(hex(statusCode))
@@ -42,9 +42,11 @@ def sendFile(filepath, targetpath):
 
 
 def createSaveGenHeader(entries: dict):
-    dataArr = struct.pack("<Q", entries["psnAccountId"])
+    dataArr = b""
+    dataArr += struct.pack("<Q", entries["psnAccountId"])
     dataArr += entries["dirName"].ljust(0x20, "\x00").encode()
     dataArr += entries["titleId"].ljust(0x10, "\x00").encode()
+    dataArr += struct.pack("<Q", entries["saveBlocks"])
     dataArr += entries["copyDirectory"].ljust(0x30, "\x00").encode()
     dataArr += entries["title"].ljust(0x80, "\x00").encode()
     dataArr += entries["subtitle"].ljust(0x80, "\x00").encode()
@@ -55,8 +57,8 @@ def createSaveGenHeader(entries: dict):
     dataArr += b"\x00" * 0x20 # unknown2
     return dataArr
 
-def receiveSave(userName: str, psnId: int, dirName: str):
-    out_dir = r"Z:\PS4\SAVEDATA\{}\ ".format(hex(psnId)[2:]).strip()
+def receiveSave(copyDirectory: str, userName: str, psnId: int, dirName: str):
+    out_dir = r"PS4/SAVEDATA/{}/ ".format(hex(psnId)[2:]).strip()
     
     os.makedirs(out_dir, exist_ok=True)
     
@@ -71,13 +73,15 @@ def receiveSave(userName: str, psnId: int, dirName: str):
     dataArr = createSaveGenHeader({
         "psnAccountId": psnId,
         "dirName": dirName,
-        "titleId": "CUSA03694",
-        "copyDirectory": "test0123",
+        "titleId": "CUSA01130",
+        "copyDirectory": copyDirectory,
+        "saveBlocks": 320,
         "title": "{} Save".format(userName),
         "subtitle": "Kat Gravity Rush",
         "details": "When the imposter is sus"
     })
-    client.send(dataArr)
+    print(len(dataArr))
+    client.sendall(dataArr)
     
     # check the headers were okay
     # and any steps for getting save data
@@ -124,7 +128,8 @@ def receiveSave(userName: str, psnId: int, dirName: str):
         print(hex(statusCode))
         return
     
-dirName = "data0013"
-sendFile(r"data0000.txt", "test0123/{}.bin".format(dirName))
-sendFile(r"icon0.png", "test0123/sce_sys/icon0.png")
-receiveSave("ac2pic", 0x5e8f03d08be1dbbc, dirName)
+dirName = "SAVEAUTO"
+baseDir = "test111F"
+sendFile(r"data.bin", baseDir + "/data.bin")
+# sendFile(r"icon0.png", "test1111/sce_sys/icon0.png")
+receiveSave(baseDir, "ac2pic", 0x5e8f03d08be1dbbc, dirName)
