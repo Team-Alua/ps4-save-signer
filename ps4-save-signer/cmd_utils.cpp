@@ -94,12 +94,12 @@ int recursiveDelete(const char * sourceDirectoryPath) {
         strcpy(newSourceDirectory, sourceDirectoryPath);
         strcat(newSourceDirectory, folderName.c_str());
         strcat(newSourceDirectory, "/");
-        int copyResult = recursiveDelete(newSourceDirectory);
-        if (copyResult != 0) {
-            return copyResult;
+        int deleteResult = recursiveDelete(newSourceDirectory);
+        if (deleteResult != 0) {
+            return deleteResult;
         }
     }
-    return remove(sourceDirectoryPath);
+    return rmdir(sourceDirectoryPath);
 }
 
 int recursiveCopy(const char * sourceDirectoryPath, const char * targetDirectoryPath) {

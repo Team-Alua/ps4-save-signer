@@ -163,7 +163,9 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         
         if (success) {
             sendStatusCode(connfd, CMD_STATUS_READY);
-            recursiveDelete(copyFolder);
+            if (recursiveDelete(copyFolder) < 0) {
+                NOTIFY(100, "Failed to recursively delete upload folder %d", errno);
+            }
 
             std::vector<std::string> inFiles;
             std::vector<std::string> outFiles;
