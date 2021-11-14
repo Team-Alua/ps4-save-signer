@@ -23,7 +23,7 @@ struct __attribute((packed)) PacketHeader {
 
 int getPacketHeader(int connfd, PacketHeader * packetHeader);
 
-size_t readFull(int connfd, void * buffer, size_t size);
+ssize_t readFull(int connfd, void * buffer, size_t size);
 
 ssize_t sendStatusCode(int connfd, uint32_t command);
 

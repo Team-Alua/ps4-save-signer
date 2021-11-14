@@ -17,12 +17,12 @@ void handleUploadFile(int connfd, PacketHeader * pHeader) {
 
     char filename[MAX_FILENAME_SIZE]; 
     memset(&filename, 0, MAX_FILENAME_SIZE);
-    ssize_t readStatus = read(connfd, &filename, pHeader->size);
+    ssize_t readStatus = readFull(connfd, &filename, pHeader->size);
     if (readStatus <= 0) {
         return;
     }
     uint32_t filesize;
-    readStatus = read(connfd, &filesize, sizeof(uint32_t));
+    readStatus = readFull(connfd, &filesize, sizeof(uint32_t));
 
     if (readStatus <= 0) {
         return;
@@ -54,11 +54,11 @@ static void copyFileTo(int connfd, const char * filename, uint32_t filesize) {
     strncpy(fileParentPath, filepath, slashIndex + 1);
     _mkdir(fileParentPath);
 
-    int fd = open(filepath, O_CREAT | O_TRUNC | O_RDWR, 0777);
+    int fd = open(filepath, O_CREAT | O_EXCL | O_WRONLY, 0777);
 
     if (fd < 0) {
         sendStatusCode(connfd, CMD_UPLOAD_FILE_OPEN_FAILED);
-        NOTIFY(50, "open error: %s", strerror(errno));
+        NOTIFY(50, "open error: %d %d", errno, fd);
         return; 
     }
 
@@ -76,18 +76,25 @@ static void copyFileTo(int connfd, const char * filename, uint32_t filesize) {
         if (bytesRemaining < fileBufSize) {
             fileBufSize = bytesRemaining;
         }
-
-        ssize_t received = read(connfd, buffer, fileBufSize);
+        
+        ssize_t received = readFull(connfd, buffer, fileBufSize);
         if (received <= 0) {
             success = false;
+            NOTIFY(50, "read socket error: %d", errno);
             break;
         }
-
         size_t fileOffset = filesize - bytesRemaining;
-        pwrite(fd, buffer, received, fileOffset);
+        ssize_t writeError = pwrite(fd, buffer, received, fileOffset);
+        if (writeError <= 0) {
+            success = false;
+            // NOTIFY(50, "write file error: %d %d", errno, fd);
+            break;
+        }
         bytesRemaining -= received;
     } while(true);
     
+
+
     close(fd);
     
     if (!success) {

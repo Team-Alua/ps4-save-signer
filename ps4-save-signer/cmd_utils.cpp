@@ -7,20 +7,21 @@
 using namespace std::__1::__fs::filesystem;
 
 
-size_t readFull(int connfd, void * buffer, size_t size) {
+ssize_t readFull(int connfd, void * buffer, size_t size) {
     size_t offset = 0;
-    while(offset < size) {
+    while(size > 0) {
         char * data = (char *)buffer + offset;
         size_t readSize = 1024;
         if (size < readSize) {
             readSize = size;
         }
 
-        ssize_t newOffset = read(connfd, data, readSize);
-        if (newOffset <= 0) {
-            return newOffset;
+        ssize_t bytesRead = read(connfd, data, readSize);
+        if (bytesRead <= 0) {
+            return bytesRead;
         }
-        offset += newOffset;
+        offset += bytesRead;
+        size -= bytesRead;
     }
     return offset;
 }
@@ -54,7 +55,7 @@ int recursiveDelete(const char * sourceDirectoryPath) {
     // do file copy
     std::vector<std::string> folders;
     struct dirent *file;
-    bool success = true;
+    int errorCode = 0;
     do {
         file = readdir(sourceDirectory);
         if (file == NULL) {
@@ -72,14 +73,18 @@ int recursiveDelete(const char * sourceDirectoryPath) {
             memset(sourcePath, 0, sizeof(sourcePath));
             strcpy(sourcePath, sourceDirectoryPath);
             strcat(sourcePath, file->d_name);
-            remove(sourcePath);
+            int fileRemoveResult = remove(sourcePath);
+            if (fileRemoveResult < 0) {
+                errorCode = fileRemoveResult;
+                break;
+            }
         }
     } while (true);
 
     closedir(sourceDirectory);
 
-    if (!success) {
-        return -1;
+    if (errorCode != 0) {
+        return errorCode;
     }
     
     char newSourceDirectory[256];
@@ -94,8 +99,7 @@ int recursiveDelete(const char * sourceDirectoryPath) {
             return copyResult;
         }
     }
-    remove(sourceDirectoryPath);
-    return 0;
+    return remove(sourceDirectoryPath);
 }
 
 int recursiveCopy(const char * sourceDirectoryPath, const char * targetDirectoryPath) {

@@ -7,6 +7,7 @@ struct __attribute((packed)) SaveGeneratorPacket {
     uint64_t psnAccountId;
     char dirName[0x20];
     char titleId[0x10];
+    uint64_t saveBlocks;
     char copyDirectory[0x30];
     OrbisSaveDataParam saveParams;
 };
@@ -20,7 +21,10 @@ void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
     SaveGeneratorPacket uploadPacket;
     ssize_t readStatus = readFull(connfd, &uploadPacket, sizeof(SaveGeneratorPacket));
     
-    if (readStatus < sizeof(SaveGeneratorPacket)) {
+    if (readStatus <= 0) {
+        sendStatusCode(connfd, readStatus);
+        return;
+    } else if (readStatus < sizeof(SaveGeneratorPacket)) {
         sendStatusCode(connfd, CMD_PARAMS_INVALID);
         return;
     }
@@ -99,7 +103,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         mount.dirName = saveGenPacket->dirName;
         mount.fingerprint = fingerprint;
         mount.titleId = saveGenPacket->titleId;
-        mount.blocks = 114;
+        mount.blocks = saveGenPacket->saveBlocks;
         mount.mountMode = 8 | 4 | 2;
         
         OrbisSaveDataMountResult mountResult;
