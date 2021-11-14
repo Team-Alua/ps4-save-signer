@@ -128,8 +128,10 @@ def receiveSave(copyDirectory: str, userName: str, psnId: int, dirName: str):
         print(hex(statusCode))
         return
     
-dirName = "SAVEAUTO"
-baseDir = "test111F"
-sendFile(r"data.bin", baseDir + "/data.bin")
-# sendFile(r"icon0.png", "test1111/sce_sys/icon0.png")
-receiveSave(baseDir, "ac2pic", 0x5e8f03d08be1dbbc, dirName)
+# Need to send: 
+# /sce_sys/keystone
+# /sce_sys/icon0.png
+# save data file
+# sendFile()
+# baseDir = "test111F"
+# receiveSave(baseDir, "ac2pic", 0x5e8f03d08be1dbbc, dirName)
