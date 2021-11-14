@@ -69,15 +69,6 @@ static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accoun
 
 static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
     do {
-        char templateFolder[256];
-        memset(templateFolder, 0, sizeof(templateFolder));
-        strcpy(templateFolder, "/data/teamalua/templates/");
-        strcat(templateFolder, saveGenPacket->titleId);
-        strcat(templateFolder, "/");
-        if (!directoryExists(templateFolder)) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_TITLE_ID_UNSUPPORTED);
-            break;
-        }
 
         char copyFolder[256];
         memset(copyFolder, 0, sizeof(copyFolder));
@@ -140,9 +131,6 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
                 break;
             }
             saveModError = CMD_SAVE_GEN_COPY_FOLDER_FAILED;
-            if (recursiveCopy(templateFolder, targetDirectory) != 0) {
-                break;
-            }
 
             if (recursiveCopy(copyFolder, targetDirectory) != 0) {
                 break;
