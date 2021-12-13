@@ -2,6 +2,7 @@
 
 WIP socket server
 
+*NOTE: You must run HEN and MIRA or launching this will cause your PS4 to kernel panic (9.00 issue).
 
 
 Credits
