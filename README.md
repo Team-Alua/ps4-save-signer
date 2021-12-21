@@ -10,5 +10,5 @@ Credits
 - [OSM](https://github.com/OSM-Made), for [PS4-Notify](https://github.com/OSM-Made/PS4-Notify) 
 - [OpenOrbis](https://github.com/OpenOrbis), for the [PS4 Toolchain](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain)
 - [xDPx](https://github.com/xXxTheDarkprogramerxXx) for help.
-- [Kernel Panic])(https://github.com/Backporter) for helping me with dumb question.
+- [Kernel Panic](https://github.com/Backporter) for helping me with dumb question.
 - TODO: *Add exhaustive list of credits*
