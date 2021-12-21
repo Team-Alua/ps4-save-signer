@@ -351,7 +351,6 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
 
         int fd = open(fullFilePath, O_RDONLY, 0);
         if (fd < 0) {
-            NOTIFY(300, "open error=%d", errno);
             sendStatusCode(connfd, CMD_SAVE_GEN_COPY_SKIP_FILE);
             continue;
         }
@@ -369,11 +368,13 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
             continue;
         }
         
+        sendStatusCode(connfd, CMD_STATUS_READY);
+        
         std::string & outPath = outPaths[i];
+        
         // size of relative file path (8 byte)
         size_t filePathLength = outPath.size();
 
-        sendStatusCode(connfd, CMD_STATUS_READY);
 
         write(connfd, &filePathLength, sizeof(filePathLength));
 
@@ -417,7 +418,6 @@ int transferFile(int connfd, int fd, size_t size) {
         } else {
             if (error == 0) {
                 error = 1;
-                NOTIFY(300, "read error %d", errno);
             }
         }
 
@@ -450,9 +450,10 @@ void downloadFileTo(int connfd, const char * basePath, const char * filename, ui
     int fd = open(filepath, O_CREAT | O_EXCL | O_WRONLY, 0777);
 
     if (fd < 0) {
-        sendStatusCode(connfd, CMD_UPLOAD_FILE_OPEN_FAILED);
-        NOTIFY(50, "open error: %d %d", errno, fd);
+        sendStatusCode(connfd, fd);
         return; 
+    } else {
+        sendStatusCode(connfd, CMD_STATUS_READY);
     }
 
     uint8_t buffer[8192];

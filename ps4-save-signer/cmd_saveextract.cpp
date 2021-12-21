@@ -19,13 +19,14 @@ void handleSaveExtract(int connfd, PacketHeader * pHeader) {
     sendStatusCode(connfd, CMD_STATUS_READY);
     SaveExtractPacket uploadPacket;
     ssize_t readStatus = readFull(connfd, &uploadPacket, sizeof(SaveExtractPacket));
-    
     if (readStatus <= 0) {
         sendStatusCode(connfd, readStatus);
         return;
     } else if (readStatus < sizeof(SaveExtractPacket)) {
         sendStatusCode(connfd, CMD_PARAMS_INVALID);
         return;
+    } else {
+        sendStatusCode(connfd, CMD_STATUS_READY);    
     }
 
     doSaveExtract(connfd, &uploadPacket);
@@ -34,32 +35,33 @@ void handleSaveExtract(int connfd, PacketHeader * pHeader) {
 static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
     do {
         // Create the save and then unmount it
-        OrbisSaveDataMount mount;
-        memset(&mount, 0, sizeof(OrbisSaveDataMount));
+        OrbisSaveDataMount tempMount;
+        memset(&tempMount, 0, sizeof(OrbisSaveDataMount));
 
-        mount.dirName = saveExtractPacket->dirName;
-        mount.titleId = saveExtractPacket->titleId;
-        mount.blocks = saveExtractPacket->saveBlocks;
-        mount.mountMode = 8 | 4 | 2;
+        tempMount.dirName = saveExtractPacket->dirName;
+        tempMount.titleId = saveExtractPacket->titleId;
+        tempMount.blocks = saveExtractPacket->saveBlocks;
+        tempMount.mountMode = 8 | 4 | 2;
 
-        OrbisSaveDataMountResult mountResult;
-        memset(&mount, 0, sizeof(OrbisSaveDataMount));
-        uint32_t mountErrorCode = createSave(&mount, &mountResult);
+        OrbisSaveDataMountResult tempMountResult;
+        memset(&tempMountResult, 0, sizeof(OrbisSaveDataMountResult));
+        int32_t tempMountErrorCode = createSave(&tempMount, &tempMountResult);
         
-        if (mountErrorCode < 0) {
-            sendStatusCode(connfd, mountErrorCode);
+        if (tempMountErrorCode < 0) {
+            sendStatusCode(connfd, tempMountErrorCode);
             break;
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
-        OrbisSaveDataUMount umount;
-        memset(&umount, 0, sizeof(OrbisSaveDataUMount));
 
-        memcpy(umount.mountPathName, mountResult.mountPathName, sizeof(mountResult.mountPathName));
-        int32_t umountErrorCode = sceSaveDataUmount(&umount);
+        OrbisSaveDataUMount tempUmount;
+        memset(&tempUmount, 0, sizeof(OrbisSaveDataUMount));
+
+        memcpy(tempUmount.mountPathName, tempMountResult.mountPathName, sizeof(tempMountResult.mountPathName));
+        int32_t tempUmountErrorCode = sceSaveDataUmount(&tempUmount);
         
-        if (umountErrorCode < 0) {
-            sendStatusCode(connfd, umountErrorCode);
+        if (tempUmountErrorCode < 0) {
+            sendStatusCode(connfd, tempUmountErrorCode);
             break;
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
@@ -83,8 +85,8 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
 
         memset(targetDirectory, 0, sizeof(targetDirectory));
         
-        sprintf(targetDirectory,"/user/home/%x/savedata/%s", getUserId(), saveExtractPacket->titleId);
-        
+        sprintf(targetDirectory,"/user/home/%x/savedata/%s/", getUserId(), saveExtractPacket->titleId);
+    
         int recCopyResult = recursiveCopy(copyFolder, targetDirectory);
         
         if (recCopyResult != 0) {
@@ -94,18 +96,18 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
 
-        // Send files back
         OrbisSaveDataMount mount;
+        // Send files back
         memset(&mount, 0, sizeof(OrbisSaveDataMount));
 
         mount.dirName = saveExtractPacket->dirName;
         mount.titleId = saveExtractPacket->titleId;
         mount.blocks = saveExtractPacket->saveBlocks;
-        mount.mountMode = 1;
+        mount.mountMode = 8 | 1;
 
         OrbisSaveDataMountResult mountResult;
-        memset(&mountResult, 0, sizeof(OrbisSaveDataMount));
-        uint32_t mountErrorCode = createSave(&mount, &mountResult);
+        memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
+        int32_t mountErrorCode = createSave(&mount, &mountResult);
         
         if (mountErrorCode < 0) {
             sendStatusCode(connfd, mountErrorCode);
@@ -117,16 +119,22 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         // send back all files found
         do {
             std::vector<std::string> folders;
-            int result = recursiveList(mountResult.mountPathName, "", folders);
+            char baseFolder[256];
+            memset(baseFolder, 0, sizeof(baseFolder));
+            strcpy(baseFolder, "/mnt/sandbox/BREW00085_000");
+            strcat(baseFolder, mountResult.mountPathName);
+            strcat(baseFolder, "/");
+            int result = recursiveList(baseFolder, "", folders);
             if (result != 0) {
                 // report this as an error
                 break;
             }
-            if (transferFiles(connfd, mountResult.mountPathName, folders, folders) != 0) {
+
+            if (transferFiles(connfd, baseFolder, folders, folders) != 0) {
                 // report this as an error
                 break;
             }
-            
+
             // report as success here
         } while(0);
 
@@ -157,7 +165,6 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
-
 
     } while(false);
 }

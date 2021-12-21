@@ -17,8 +17,8 @@ static void doSaveGenerator(int, SaveGeneratorPacket *);
 
 
 void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
-    
     sendStatusCode(connfd, CMD_STATUS_READY);
+
     SaveGeneratorPacket uploadPacket;
     ssize_t readStatus = readFull(connfd, &uploadPacket, sizeof(SaveGeneratorPacket));
     
@@ -28,6 +28,8 @@ void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
     } else if (readStatus < sizeof(SaveGeneratorPacket)) {
         sendStatusCode(connfd, CMD_PARAMS_INVALID);
         return;
+    } else {
+        sendStatusCode(connfd, CMD_STATUS_READY);
     }
 
     doSaveGenerator(connfd, &uploadPacket);
@@ -92,8 +94,8 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         mount.mountMode = 8 | 4 | 2;
 
         OrbisSaveDataMountResult mountResult;
-        memset(&mountResult, 0, sizeof(OrbisSaveDataMount));
-        uint32_t mountErrorCode = createSave(&mount, &mountResult);
+        memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
+        int32_t mountErrorCode = createSave(&mount, &mountResult);
         
         if (mountErrorCode < 0) {
             sendStatusCode(connfd, mountErrorCode);
@@ -113,7 +115,6 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         uint32_t saveModError = CMD_SAVE_GEN_PARMSFO_MOD_FAILED;
         do {
             if (!changeSaveAccountId(targetDirectory, saveGenPacket->psnAccountId)) {
-                NOTIFY_CONST("Failed to change save account id");
                 break;
             }
 
@@ -123,7 +124,6 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
 
             int32_t setParamResult = sceSaveDataSetParam(mountResult.mountPathName, 0, &saveGenPacket->saveParams, sizeof(saveGenPacket->saveParams));
             if (setParamResult < 0) {
-                NOTIFY(300 , "sceSaveDataSetParam error=%s", errorCodeToString(setParamResult));
                 break;
             }
             saveModError = CMD_SAVE_GEN_COPY_FOLDER_FAILED;
@@ -150,7 +150,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         if (success) {
             sendStatusCode(connfd, CMD_STATUS_READY);
             if (recursiveDelete(copyFolder) < 0) {
-                NOTIFY(100, "Failed to recursively delete upload folder %d", errno);
+                // not a really important error
             }
 
             std::vector<std::string> inFiles;

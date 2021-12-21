@@ -3,6 +3,7 @@
 #include "cmd_constants.hpp"
 #include "cmd_uploadfile.hpp"
 #include "cmd_savegen.hpp"
+#include "cmd_saveextract.hpp"
 #include "cmd_deletedir.hpp"
 #include "signal.h"
 #define PORT 9025
@@ -70,8 +71,6 @@ void clientHandler(int connfd) {
     while (true) {
         PacketHeader pHeader;
 
-        // automatically close because
-        // connection is probably broken
         if (getPacketHeader(connfd, &pHeader) != CMD_STATUS_READY) {
             break;
         }
@@ -83,6 +82,10 @@ void clientHandler(int connfd) {
             }
             case CMD_SAVE_GEN: {
                 handleSaveGenerating(connfd, &pHeader);
+                break;
+            }
+            case CMD_SAVE_EXTRACT: {
+                handleSaveExtract(connfd, &pHeader);
                 break;
             }
             case CMD_DELETE_UPLOAD_DIRECTORY: {

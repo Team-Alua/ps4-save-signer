@@ -4,7 +4,6 @@
 #define MAX_FILENAME_SIZE 64
 
 
-static void downloadFileTo(int connfd, const char * filename, uint32_t filesize);
 
 void handleUploadFile(int connfd, PacketHeader * pHeader) {
     // size will be string size

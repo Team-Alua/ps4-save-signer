@@ -3,7 +3,7 @@
 	<volume>
 		<volume_type>pkg_ps4_app</volume_type>
 		<volume_id>PS4VOLUME</volume_id>
-		<volume_ts>2021-12-19 17:26:41</volume_ts>
+		<volume_ts>2021-12-21 00:53:11</volume_ts>
 		<package content_id="IV0000-BREW00085_00-SAVESIGNER000000" passcode="00000000000000000000000000000000"
 			storage_type="digital50" app_type="full" />
 		<chunk_info chunk_count="1" scenario_count="1">
@@ -22,8 +22,7 @@
 		<file targ_path="sce_sys/icon0.png" orig_path="sce_sys/icon0.png" />
 		<file targ_path="sce_module/libjbc.sprx" orig_path="sce_module/libjbc.sprx" />
 		<file targ_path="sce_module/libc.prx" orig_path="sce_module/libc.prx" />
-		<file targ_path="sce_module/libSceFios2.prx" orig_path="sce_module/libSceFios2.prx" />
-	</files>
+		<file targ_path="sce_module/libSceFios2.prx" orig_path="sce_module/libSceFios2.prx" />	</files>
 	<rootdir>
 		<dir targ_name="sce_sys">
 			<dir targ_name="about" />

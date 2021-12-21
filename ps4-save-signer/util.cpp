@@ -69,22 +69,12 @@ int resolveDynamicLinks() {
 		NOTIFY(300, "[SAVE SIGNER] Failed to resolve symbol: %s\n", "Jailbreak");
 		return -1;
 	}
-
-	int libLog = sceKernelLoadStartModule("/app0/sce_module/libLog.prx", 0, NULL, 0, NULL, NULL);
-	if (libLog == 0) {
-		NOTIFY(300, "[SAVE SIGNER] sceKernelLoadStartModule() failed to load module %s\n", "libLog.prx");
-		return -2;
-	}
-
-	if (logInitalize(libLog) == -1) {
-		NOTIFY(300, "[SAVE SIGNER] Failed to resolve symbol for %s\n", "libLog.prx");
-		return -2;
-	}
+	
 	return 0;
 }
 
 
-uint32_t createSave(OrbisSaveDataMount * mount, OrbisSaveDataMountResult * result) {
+int32_t createSave(OrbisSaveDataMount * mount, OrbisSaveDataMountResult * result) {
     char fingerprint[80];
     memset(fingerprint, 0, sizeof(fingerprint));
     strcpy(fingerprint, "0000000000000000000000000000000000000000000000000000000000000000");
