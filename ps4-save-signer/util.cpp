@@ -10,17 +10,17 @@
 
 
 int system_notification(const char* text, const char* iconName) {
-	OrbisSystemNotificationBuffer NotificationBuffer;
+	OrbisNotificationRequest NotificationBuffer;
 	
-	NotificationBuffer.Type = OrbisSystemNotificationType::NotificationRequest;
+	NotificationBuffer.type = OrbisNotificationRequestType::NotificationRequest;
 	NotificationBuffer.unk3 = 0; 
-	NotificationBuffer.UseIconImageUri = 1;
-	NotificationBuffer.TargetId = -1;
+	NotificationBuffer.useIconImageUri = 1;
+	NotificationBuffer.targetId = -1;
 	
-	snprintf(NotificationBuffer.Uri, sizeof(NotificationBuffer.Uri), "cxml://psnotification/tex_%s", iconName);
-	strncpy(NotificationBuffer.Message, text, sizeof(NotificationBuffer.Message));
+	snprintf(NotificationBuffer.iconUri, sizeof(NotificationBuffer.iconUri), "cxml://psnotification/tex_%s", iconName);
+	strncpy(NotificationBuffer.message, text, sizeof(NotificationBuffer.message));
 	
-	sceKernelSendNotificationRequest(0, (char*)&NotificationBuffer, 3120, 0);
+	sceKernelSendNotificationRequest(0, &NotificationBuffer, 3120, 0);
 	
 	return 0;
 }
@@ -47,7 +47,6 @@ int initializeModules() {
     return 0;
 }
 
-
 int32_t getUserId() {
     int32_t outUserId;
     sceUserServiceGetInitialUser(&outUserId);
@@ -56,19 +55,41 @@ int32_t getUserId() {
 
 bool (*jailbreak)();
 
+
 int resolveDynamicLinks() {
 	// https://github.com/sleirsgoevy/ps4-libjbc
 	int libjbc = sceKernelLoadStartModule("/app0/sce_module/libjbc.sprx", 0, NULL, 0, NULL, NULL);
 	if (libjbc == 0) {
-		printf("sceKernelLoadStartModule() failed to load module %s\n", "libjbc.sprx");
+		NOTIFY(300, "[SAVE SIGNER] sceKernelLoadStartModule() failed to load module %s\n", "libjbc.sprx");
 		return -1;
 	}
 	
     sceKernelDlsym(libjbc, "Jailbreak", (void**)&jailbreak);
 	if(jailbreak == nullptr) {
-		printf("Failed to resolve symbol: %s\n", "Jailbreak");
+		NOTIFY(300, "[SAVE SIGNER] Failed to resolve symbol: %s\n", "Jailbreak");
 		return -1;
 	}
-    return 0;
+
+	int libLog = sceKernelLoadStartModule("/app0/sce_module/libLog.prx", 0, NULL, 0, NULL, NULL);
+	if (libLog == 0) {
+		NOTIFY(300, "[SAVE SIGNER] sceKernelLoadStartModule() failed to load module %s\n", "libLog.prx");
+		return -2;
+	}
+
+	if (logInitalize(libLog) == -1) {
+		NOTIFY(300, "[SAVE SIGNER] Failed to resolve symbol for %s\n", "libLog.prx");
+		return -2;
+	}
+	return 0;
 }
 
+
+uint32_t createSave(OrbisSaveDataMount * mount, OrbisSaveDataMountResult * result) {
+    char fingerprint[80];
+    memset(fingerprint, 0, sizeof(fingerprint));
+    strcpy(fingerprint, "0000000000000000000000000000000000000000000000000000000000000000");
+
+    mount->userId = getUserId();
+    mount->fingerprint = fingerprint;
+    return sceSaveDataMount(mount, result);
+}

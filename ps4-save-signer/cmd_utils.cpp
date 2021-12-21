@@ -102,6 +102,55 @@ int recursiveDelete(const char * sourceDirectoryPath) {
     return rmdir(sourceDirectoryPath);
 }
 
+int recursiveList(const char * sourceDirectoryPath, const char * baseDirectory, std::vector<std::string> & files) {
+    DIR * sourceDirectory = opendir(sourceDirectoryPath);
+
+    std::vector<std::string> folders;
+
+    struct dirent *file;
+    do {
+        file = readdir(sourceDirectory);
+        if (file == NULL) {
+            break;
+        }
+
+        if (file->d_name[0] == '.') {
+            continue;
+        }
+
+        if (file->d_type == DT_DIR) {
+            folders.push_back(std::string(file->d_name));
+        } else if (file->d_type == DT_REG) {
+            char sourcePath[256];
+                   
+            memset(sourcePath, 0, sizeof(sourcePath));
+            strcpy(sourcePath, baseDirectory);
+            strcat(sourcePath, file->d_name);
+
+            files.push_back(std::string(sourcePath));
+        }
+    } while (true);
+
+    closedir(sourceDirectory);
+    
+    char newSourceDirectory[256];
+    
+    for (std::string folderName : folders) {
+        memset(newSourceDirectory, 0, sizeof(newSourceDirectory));
+        strcpy(newSourceDirectory, sourceDirectoryPath);
+        strcat(newSourceDirectory, folderName.c_str());
+        strcat(newSourceDirectory, "/");
+    
+        int result = recursiveList(newSourceDirectory, (folderName + "/").c_str(), files);
+        if (result != 0) {
+            return result;
+        }
+    }
+    return 0;
+}
+
+
+
 int recursiveCopy(const char * sourceDirectoryPath, const char * targetDirectoryPath) {
     DIR * sourceDirectory = opendir(sourceDirectoryPath);
 
@@ -374,4 +423,75 @@ int transferFile(int connfd, int fd, size_t size) {
 
     }
     return 0;
+}
+
+void downloadFileTo(int connfd, const char * basePath, const char * filename, uint32_t filesize) {
+    char filepath[256];
+    memset(filepath, 0, 256);
+
+    strcpy(filepath, basePath);
+    strcat(filepath, filename);
+
+    const int fileLength = strlen(filepath);
+
+    char fileParentPath[256];
+    memset(fileParentPath, 0, sizeof(fileParentPath));
+    
+    int slashIndex = fileLength - 1;
+
+    for (;slashIndex >= 0; slashIndex--) {
+        if (filepath[slashIndex] == '/') {
+            break;
+        }
+    }
+    strncpy(fileParentPath, filepath, slashIndex + 1);
+    _mkdir(fileParentPath);
+
+    int fd = open(filepath, O_CREAT | O_EXCL | O_WRONLY, 0777);
+
+    if (fd < 0) {
+        sendStatusCode(connfd, CMD_UPLOAD_FILE_OPEN_FAILED);
+        NOTIFY(50, "open error: %d %d", errno, fd);
+        return; 
+    }
+
+    uint8_t buffer[8192];
+
+    uint32_t bytesRemaining = filesize;
+    bool success = true;
+
+    do {
+        if (bytesRemaining == 0) {
+            break;
+        }
+        size_t fileBufSize = 8192;
+        
+        if (bytesRemaining < fileBufSize) {
+            fileBufSize = bytesRemaining;
+        }
+        
+        ssize_t received = readFull(connfd, buffer, fileBufSize);
+        if (received <= 0) {
+            success = false;
+            NOTIFY(50, "read socket error: %d", errno);
+            break;
+        }
+        size_t fileOffset = filesize - bytesRemaining;
+        ssize_t writeError = pwrite(fd, buffer, received, fileOffset);
+        if (writeError <= 0) {
+            success = false;
+            // NOTIFY(50, "write file error: %d %d", errno, fd);
+            break;
+        }
+        bytesRemaining -= received;
+    } while(true);
+    
+
+
+    close(fd);
+    
+    if (!success) {
+        unlink(filepath);
+    }
+    sendStatusCode(connfd, CMD_STATUS_READY);
 }

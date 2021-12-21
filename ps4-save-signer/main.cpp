@@ -2,21 +2,10 @@
 #include <condition_variable>
 #include <ftw.h>
 #include <thread>
-
+#include "util.h"
 #include "server.h"
-
-
-
-
-
-
-
-
 // Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
-// Below is where all the 
-
-// /data/teamalua/templates/*titleId*/**
 // Logging
 std::stringstream debugLogStream;
 
@@ -35,7 +24,7 @@ int main(void)
         if (resolveDynamicLinks() != 0) {
             break;
         }
-        
+        sceKernelDebugOutText(0, "[SAVE SIGNER] Loaded successfully!");
         jailbreak();
         std::thread t1(serverThread);
         t1.detach();

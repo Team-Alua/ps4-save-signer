@@ -134,4 +134,4 @@ def receiveSave(copyDirectory: str, userName: str, psnId: int, dirName: str):
 # save data file
 # sendFile()
 # baseDir = "test111F"
-# receiveSave(baseDir, "ac2pic", 0x5e8f03d08be1dbbc, dirName)
+receiveSave(baseDir, "ac2pic", 0x5e8f03d08be1dbbc, dirName)

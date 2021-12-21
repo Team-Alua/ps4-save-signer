@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 
+
 struct __attribute((packed)) SaveGeneratorPacket {
     uint64_t psnAccountId;
     char dirName[0x20];
@@ -16,8 +17,8 @@ static void doSaveGenerator(int, SaveGeneratorPacket *);
 
 
 void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
+    
     sendStatusCode(connfd, CMD_STATUS_READY);
-
     SaveGeneratorPacket uploadPacket;
     ssize_t readStatus = readFull(connfd, &uploadPacket, sizeof(SaveGeneratorPacket));
     
@@ -69,7 +70,6 @@ static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accoun
 
 static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
     do {
-
         char copyFolder[256];
         memset(copyFolder, 0, sizeof(copyFolder));
         strcpy(copyFolder, "/data/teamalua/uploads/");
@@ -79,31 +79,27 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         if (!directoryExists(copyFolder)) {
             sendStatusCode(connfd, CMD_SAVE_GEN_COPY_FOLDER_NOT_FOUND);
             break;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
-        sendStatusCode(connfd, CMD_STATUS_READY);
-
 
         OrbisSaveDataMount mount;
         memset(&mount, 0, sizeof(OrbisSaveDataMount));
 
-        char fingerprint[80];
-        memset(fingerprint, 0, sizeof(fingerprint));
-        strcpy(fingerprint, "0000000000000000000000000000000000000000000000000000000000000000");
-
-        mount.userId = getUserId();
         mount.dirName = saveGenPacket->dirName;
-        mount.fingerprint = fingerprint;
         mount.titleId = saveGenPacket->titleId;
         mount.blocks = saveGenPacket->saveBlocks;
         mount.mountMode = 8 | 4 | 2;
-        
-        OrbisSaveDataMountResult mountResult;
-        memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
 
-        int32_t mountErrorCode = sceSaveDataMount(&mount, &mountResult);
+        OrbisSaveDataMountResult mountResult;
+        memset(&mountResult, 0, sizeof(OrbisSaveDataMount));
+        uint32_t mountErrorCode = createSave(&mount, &mountResult);
+        
         if (mountErrorCode < 0) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_MOUNT_ERROR);
+            sendStatusCode(connfd, mountErrorCode);
             break;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
  
         char targetDirectory[256];
@@ -145,8 +141,10 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         int32_t umountErrorCode = sceSaveDataUmount(&umount);
         
         if (umountErrorCode < 0) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_UMOUNT_ERROR);
+            sendStatusCode(connfd, umountErrorCode);
             break;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
         
         if (success) {
@@ -202,10 +200,10 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         del.titleId = saveGenPacket->titleId;
         int32_t deleteUserSaves = sceSaveDataDelete(&del);
         if (deleteUserSaves < 0) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_DELETE_MOUNT_ERROR);
+            sendStatusCode(connfd, deleteUserSaves);
             break;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
-
-        sendStatusCode(connfd, CMD_STATUS_READY);
     } while (false);
 }
