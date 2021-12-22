@@ -2,7 +2,7 @@
 
 #include <ftw.h>
 
-#include <string>
+#include <string.h>
 #include <sys/stat.h>
 
 #include <dirent.h>
@@ -11,9 +11,17 @@
 #include <cstdint>
 
 #include <stdint.h>
+
 #include <sys/types.h>
+#include <fcntl.h>
 #include <sys/sendfile.h>
 #include <unistd.h>
+
+#include <vector>
+#include <string>
+
+#include "util.hpp"
+#include "cmd_constants.hpp"
 
 struct __attribute((packed)) PacketHeader {
     uint32_t magic;
@@ -40,5 +48,7 @@ int recursiveList(const char * sourceDirectoryPath, const char * baseDirectory, 
 int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths);
 
 int transferFile(int connfd, int fd, size_t size);
+
+long getFileSize(const char *filename);
 
 void downloadFileTo(int connfd, const char * basePath, const char * filename, uint32_t filesize);

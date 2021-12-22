@@ -1,14 +1,14 @@
 # Package metadata.
 TITLE       := Save Signer
-VERSION     := 1.00
+VERSION     := 1.01
 TITLE_ID    := BREW00085
 CONTENT_ID  := IV0000-BREW00085_00-SAVESIGNER000000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceUserService -lSceSaveData -lSceFreeType
+LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceUserService -lSceSaveData -lSceFreeType -lzip
 
 # Additional compile flags.
-EXTRAFLAGS  := -DGRAPHICS_USES_FONT
+EXTRAFLAGS  := -DGRAPHICS_USES_FONT -I../ps4-zip/src
 
 # Asset and module directories.
 ASSETS 		:= $(wildcard pkg/assets/**/*)
@@ -31,7 +31,7 @@ OBJS        := $(patsubst $(PROJDIR)/%.c, $(INTDIR)/%.o, $(CFILES)) $(patsubst $
 # Define final C/C++ flags
 CFLAGS      := -cc1 -triple x86_64-pc-freebsd-elf -munwind-tables -fuse-init-array -debug-info-kind=limited -debugger-tuning=sce -emit-obj $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
 CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -I$(TOOLCHAIN)/src/lib
-LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
+LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib -L../ps4-zip/ $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
 # Create the intermediate directory incase it doesn't already exist.
 _unused     := $(shell mkdir -p $(INTDIR))
@@ -56,9 +56,7 @@ all: clean $(CONTENT_ID).pkg
 
 pkg/eboot.bin: $(INTDIR) $(OBJS)
 	$(LD) $(INTDIR)/*.o -o $(INTDIR)/$(PROJDIR).elf $(LDFLAGS)
-	$(TOOLCHAIN)/bin/$(CDIR)/create-eboot -in=$(INTDIR)/$(PROJDIR).elf -out=$(INTDIR)/$(PROJDIR).oelf --paid 0x3800000000000011
-	mv eboot.bin pkg/eboot.bin
-
+	$(TOOLCHAIN)/bin/$(CDIR)/create-fself -eboot=pkg/eboot.bin -in=$(INTDIR)/$(PROJDIR).elf -out=$(INTDIR)/$(PROJDIR).oelf --paid 0x3800000000000011
 
 $(CONTENT_ID).pkg: pkg/pkg.gp4
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core pkg_build $< .

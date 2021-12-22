@@ -2,7 +2,7 @@
 #include <sys/stat.h>
 
 
-#include "server.h"
+#include "server.hpp"
 
 #include "cmd_utils.hpp"
 #include "cmd_constants.hpp"

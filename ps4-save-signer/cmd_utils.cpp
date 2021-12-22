@@ -1,11 +1,4 @@
 #include "cmd_utils.hpp"
-#include "cmd_constants.hpp"
-#include "util.h"
-#include <vector>
-#include <string>
-
-using namespace std::__1::__fs::filesystem;
-
 
 ssize_t readFull(int connfd, void * buffer, size_t size) {
     size_t offset = 0;
@@ -333,6 +326,7 @@ long getFileSize(const char *filename)
 
     return off;
 }
+
 
 
 int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths) {

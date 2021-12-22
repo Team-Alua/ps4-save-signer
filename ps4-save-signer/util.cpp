@@ -1,13 +1,5 @@
 // Original: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/util.cpp
-#include "util.h"
-#include "define_headers.h"
-
-#include "string.h"
-#include "stdio.h"
-#include <orbis/libkernel.h>
-#include <orbis/UserService.h>
-
-
+#include "util.hpp"
 
 int system_notification(const char* text, const char* iconName) {
 	OrbisNotificationRequest NotificationBuffer;
@@ -71,15 +63,4 @@ int resolveDynamicLinks() {
 	}
 	
 	return 0;
-}
-
-
-int32_t createSave(OrbisSaveDataMount * mount, OrbisSaveDataMountResult * result) {
-    char fingerprint[80];
-    memset(fingerprint, 0, sizeof(fingerprint));
-    strcpy(fingerprint, "0000000000000000000000000000000000000000000000000000000000000000");
-
-    mount->userId = getUserId();
-    mount->fingerprint = fingerprint;
-    return sceSaveDataMount(mount, result);
 }

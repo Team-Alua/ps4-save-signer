@@ -2,8 +2,8 @@
 #include <condition_variable>
 #include <ftw.h>
 #include <thread>
-#include "util.h"
-#include "server.h"
+#include "util.hpp"
+#include "server.hpp"
 // Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
 // Logging

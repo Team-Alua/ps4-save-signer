@@ -1,8 +1,17 @@
 // Original: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/util.h
+
 #include <stdint.h>
+#include "string.h"
+#include "stdio.h"
 
 #include <orbis/libkernel.h>
-#include "define_headers.h"
+#include <orbis/UserService.h>
+#include <orbis/SaveData.h>
+
+#include "cmd_constants.hpp"
+#include <vector>
+#include <string>
+
 #pragma once
 
 
@@ -25,7 +34,5 @@ int resolveDynamicLinks();
 int initializeModules();
 
 int32_t getUserId();
-
-int32_t createSave(OrbisSaveDataMount * mount, OrbisSaveDataMountResult * result);
 
 extern bool (*jailbreak)();

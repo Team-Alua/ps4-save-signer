@@ -1,15 +1,11 @@
 #include "cmd_savegen.hpp"
-#include "cmd_utils.hpp"
-#include <vector>
-#include <string>
 
-
-struct __attribute((packed)) SaveGeneratorPacket {
+struct __attribute__ ((packed)) SaveGeneratorPacket {
     uint64_t psnAccountId;
     char dirName[0x20];
     char titleId[0x10];
     uint64_t saveBlocks;
-    char copyDirectory[0x30];
+    char zipname[0x30];
     OrbisSaveDataParam saveParams;
 };
 
@@ -72,30 +68,31 @@ static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accoun
 
 static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
     do {
-        char copyFolder[256];
-        memset(copyFolder, 0, sizeof(copyFolder));
-        strcpy(copyFolder, "/data/teamalua/uploads/");
-        strcat(copyFolder, saveGenPacket->copyDirectory);
-        strcat(copyFolder, "/");
 
-        if (!directoryExists(copyFolder)) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_COPY_FOLDER_NOT_FOUND);
-            break;
-        } else {
-            sendStatusCode(connfd, CMD_STATUS_READY);
-        }
+        char fingerprint[80];
+        memset(fingerprint, 0, sizeof(fingerprint));
+        strcpy(fingerprint, "0000000000000000000000000000000000000000000000000000000000000000");
 
+        // Create and mount template save
         OrbisSaveDataMount mount;
         memset(&mount, 0, sizeof(OrbisSaveDataMount));
+
 
         mount.dirName = saveGenPacket->dirName;
         mount.titleId = saveGenPacket->titleId;
         mount.blocks = saveGenPacket->saveBlocks;
-        mount.mountMode = 8 | 4 | 2;
+        mount.mountMode =  ORBIS_SAVE_DATA_MOUNT_MODE_DESTRUCT_OFF;
+        mount.mountMode |= ORBIS_SAVE_DATA_MOUNT_MODE_CREATE;
+        mount.mountMode |= ORBIS_SAVE_DATA_MOUNT_MODE_RDWR;
+        mount.userId = getUserId();
+        mount.fingerprint = fingerprint;
+
 
         OrbisSaveDataMountResult mountResult;
         memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
-        int32_t mountErrorCode = createSave(&mount, &mountResult);
+        
+
+        int32_t mountErrorCode = sceSaveDataMount(&mount, &mountResult);
         
         if (mountErrorCode < 0) {
             sendStatusCode(connfd, mountErrorCode);
@@ -103,18 +100,24 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
- 
-        char targetDirectory[256];
-        memset(targetDirectory, 0, sizeof(targetDirectory));
-        strcpy(targetDirectory, "/mnt/sandbox/BREW00085_000");
-        strcat(targetDirectory, mountResult.mountPathName);
-        strcat(targetDirectory, "/");
+
+        // Create mount point structure for later use
+        OrbisSaveDataMountPoint mp;
+        memset(&mp, 0, sizeof(OrbisSaveDataMountPoint));
+        strcpy(mp.data, mountResult.mountPathName);
+        
+
+        char saveMountDirectory[256];
+        memset(saveMountDirectory, 0, sizeof(saveMountDirectory));
+        strcpy(saveMountDirectory, "/mnt/sandbox/BREW00085_000");
+        strcat(saveMountDirectory, mountResult.mountPathName);
+        strcat(saveMountDirectory, "/");
 
 
         bool success = false;
         uint32_t saveModError = CMD_SAVE_GEN_PARMSFO_MOD_FAILED;
         do {
-            if (!changeSaveAccountId(targetDirectory, saveGenPacket->psnAccountId)) {
+            if (!changeSaveAccountId(saveMountDirectory, saveGenPacket->psnAccountId)) {
                 break;
             }
 
@@ -122,23 +125,33 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             memset(&saveGenPacket->saveParams.unknown2, 0, sizeof(saveGenPacket->saveParams.unknown2));
             saveGenPacket->saveParams.mtime = time(NULL);
 
-            int32_t setParamResult = sceSaveDataSetParam(mountResult.mountPathName, 0, &saveGenPacket->saveParams, sizeof(saveGenPacket->saveParams));
+            uint32_t type = ORBIS_SAVE_DATA_PARAM_TYPE_ALL;
+            int32_t setParamResult = sceSaveDataSetParam(&mp, type, &saveGenPacket->saveParams, sizeof(saveGenPacket->saveParams));
             if (setParamResult < 0) {
                 break;
             }
             saveModError = CMD_SAVE_GEN_COPY_FOLDER_FAILED;
 
-            if (recursiveCopy(copyFolder, targetDirectory) != 0) {
+
+            char zipPath[256];
+            memset(zipPath, 0, sizeof(zipPath));
+            strcpy(zipPath, "/data/teamalua/uploads/");
+            strcat(zipPath, saveGenPacket->zipname);
+            
+            int zipExtractStatus = zip_extract(zipPath, saveMountDirectory, NULL, NULL);
+            
+            // TODO: Get return code and check if it was removed
+            remove(zipPath);
+
+            if (zipExtractStatus < 0) {
                 break;
             }
+
             success = true;
         } while(0);
+        
 
-        OrbisSaveDataUMount umount;
-        memset(&umount, 0, sizeof(OrbisSaveDataUMount));
-
-        memcpy(umount.mountPathName, mountResult.mountPathName, sizeof(mountResult.mountPathName));
-        int32_t umountErrorCode = sceSaveDataUmount(&umount);
+        int32_t umountErrorCode = sceSaveDataUmount(&mp);
         
         if (umountErrorCode < 0) {
             sendStatusCode(connfd, umountErrorCode);
@@ -149,10 +162,8 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         
         if (success) {
             sendStatusCode(connfd, CMD_STATUS_READY);
-            if (recursiveDelete(copyFolder) < 0) {
-                // not a really important error
-            }
 
+            // TODO: Maybe only send a zip?
             std::vector<std::string> inFiles;
             std::vector<std::string> outFiles;
             char baseDirectory[256];
@@ -162,25 +173,20 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             char binOutPath[256];
             
             memset(baseDirectory, 0, sizeof(baseDirectory));
-            memset(pfsPath, 0, sizeof(pfsPath));
-            memset(binPath, 0, sizeof(binPath));
-            memset(binOutPath, 0, sizeof(binOutPath));
+            sprintf(baseDirectory,"/user/home/%x/savedata/%s/", getUserId(), saveGenPacket->titleId);
 
-            sprintf(baseDirectory,"/user/home/%x/savedata/", getUserId());
-            
-            strcpy(pfsPath, saveGenPacket->titleId);
-            strcat(pfsPath, "/");
-            strcat(pfsPath, saveGenPacket->dirName);
+
+            memset(pfsPath, 0, sizeof(pfsPath));            
+            strcpy(pfsPath, saveGenPacket->dirName);
             strcat(pfsPath, ".bin");
 
 
-            strcpy(binPath, saveGenPacket->titleId);
-            strcat(binPath, "/sdimg_");
+            memset(binPath, 0, sizeof(binPath));
+            strcpy(binPath, "sdimg_");
             strcat(binPath, saveGenPacket->dirName);
 
-            strcpy(binOutPath, saveGenPacket->titleId);
-            strcat(binOutPath, "/");
-            strcat(binOutPath, saveGenPacket->dirName);
+            memset(binOutPath, 0, sizeof(binOutPath));
+            strcpy(binOutPath, saveGenPacket->dirName);
 
             inFiles.push_back(std::string(pfsPath));
             outFiles.push_back(std::string(pfsPath));
@@ -192,12 +198,13 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             sendStatusCode(connfd, saveModError);
         }
 
+        // delete zip file here
 
         OrbisSaveDataDelete del;
         memset(&del, 0, sizeof(OrbisSaveDataDelete));
         del.userId = getUserId();
-        del.dirName = saveGenPacket->dirName;
-        del.titleId = saveGenPacket->titleId;
+        del.dirName = (OrbisSaveDataDirName *) saveGenPacket->dirName;
+        del.titleId = (OrbisSaveDataTitleId *) saveGenPacket->titleId;
         int32_t deleteUserSaves = sceSaveDataDelete(&del);
         if (deleteUserSaves < 0) {
             sendStatusCode(connfd, deleteUserSaves);
