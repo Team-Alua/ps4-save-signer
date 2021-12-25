@@ -4,6 +4,7 @@
 #include <thread>
 #include "util.hpp"
 #include "server.hpp"
+#include "zip.h"
 // Use this for jailbreaking: https://github.com/0x199/ps4-ipi/blob/main/Internal%20PKG%20Installer/modules.cpp
 
 // Logging
@@ -26,6 +27,7 @@ int main(void)
         }
         sceKernelDebugOutText(0, "[SAVE SIGNER] Loaded successfully!");
         jailbreak();
+        
         std::thread t1(serverThread);
         t1.detach();
     } while(0);

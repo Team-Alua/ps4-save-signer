@@ -7,11 +7,11 @@
 
 #include <orbis/libkernel.h>
 
-#include "zip.h"
-
 #include "cmd_utils.hpp"
 #include "cmd_constants.hpp"
 #include "util.hpp"
+#include "log.hpp"
+#include "zip_util.hpp"
 
 #include "errcodes.hpp"
 

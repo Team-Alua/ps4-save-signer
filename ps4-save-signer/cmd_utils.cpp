@@ -10,9 +10,12 @@ ssize_t readFull(int connfd, void * buffer, size_t size) {
         }
 
         ssize_t bytesRead = read(connfd, data, readSize);
-        if (bytesRead <= 0) {
+        if (bytesRead == 0) {
             return bytesRead;
+        } else if (bytesRead == -1) {
+            return errno;
         }
+        
         offset += bytesRead;
         size -= bytesRead;
     }
@@ -327,6 +330,54 @@ long getFileSize(const char *filename)
     return off;
 }
 
+int transferFile(int connfd, const char * filePath, std::string fileName) {
+    uint8_t fileCount = 1;
+    write(connfd, &fileCount, sizeof(uint8_t));
+   
+    int fd = open(filePath, O_RDONLY, 0);
+    Log("Sending... %s", filePath);
+    if (fd < 0) {
+        sendStatusCode(connfd, errno);
+        return errno;
+    } else {
+        sendStatusCode(connfd, CMD_STATUS_READY);
+    }
+
+    off_t fileSize = lseek(fd, 0, SEEK_END);
+    if (fileSize == -1) {
+        Log("Failed to seek to end", filePath);
+        sendStatusCode(connfd, errno);
+        close(fd);
+        return errno;
+    } else {
+        sendStatusCode(connfd, CMD_STATUS_READY);
+    }
+
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        Log("Failed to seek to beginning", filePath);
+        sendStatusCode(connfd, errno);
+        close(fd);
+        return errno;
+    } else {
+        sendStatusCode(connfd, CMD_STATUS_READY);
+    }
+    Log("Got necessary info for %s", filePath);
+        
+    // size of relative file path (8 byte)
+    size_t filePathLength = fileName.size();
+
+    write(connfd, &filePathLength, sizeof(filePathLength));
+
+    write(connfd, &fileSize, sizeof(fileSize));
+
+    write(connfd, fileName.c_str(), fileName.size());
+
+    
+    _transferFile(connfd, fd , fileSize);
+    close(fd);
+    return 0;
+}
+
 
 
 int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths) {
@@ -337,33 +388,33 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
         std::string & inPath = relFilePaths[i];
 
         char fullFilePath[256];
-        memset(fullFilePath, 0, sizeof(fullFilePath));
-        strcpy(fullFilePath, baseDirectory);
-        strcat(fullFilePath, inPath.c_str());
-
-
+        sprintf(fullFilePath, "%s%s", baseDirectory, inPath.c_str());
 
         int fd = open(fullFilePath, O_RDONLY, 0);
         if (fd < 0) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_COPY_SKIP_FILE);
+            sendStatusCode(connfd, errno);
             continue;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
 
         off_t fileSize = lseek(fd, 0, SEEK_END);
         if (fileSize == -1) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_COPY_SKIP_FILE);
+            sendStatusCode(connfd, errno);
             close(fd);
             continue;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
 
         if (lseek(fd, 0, SEEK_SET) == -1) {
-            sendStatusCode(connfd, CMD_SAVE_GEN_COPY_SKIP_FILE);
+            sendStatusCode(connfd, errno);
             close(fd);
             continue;
+        } else {
+            sendStatusCode(connfd, CMD_STATUS_READY);
         }
-        
-        sendStatusCode(connfd, CMD_STATUS_READY);
-        
+
         std::string & outPath = outPaths[i];
         
         // size of relative file path (8 byte)
@@ -376,7 +427,7 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
 
         write(connfd, outPath.c_str(), outPath.size());
         
-        transferFile(connfd, fd , fileSize);
+        _transferFile(connfd, fd , fileSize);
 
         close(fd);
     }
@@ -385,7 +436,7 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
 
 #include <math.h>
 
-int transferFile(int connfd, int fd, size_t size) {
+static int _transferFile(int connfd, int fd, size_t size) {
     unsigned char buffer[4096];
     int error = 0;
 
@@ -441,10 +492,10 @@ void downloadFileTo(int connfd, const char * basePath, const char * filename, ui
     strncpy(fileParentPath, filepath, slashIndex + 1);
     _mkdir(fileParentPath);
 
-    int fd = open(filepath, O_CREAT | O_EXCL | O_WRONLY, 0777);
+    int fd = open(filepath, O_CREAT | O_WRONLY, 0777);
 
-    if (fd < 0) {
-        sendStatusCode(connfd, fd);
+    if (fd == -1) {
+        sendStatusCode(connfd, errno);
         return; 
     } else {
         sendStatusCode(connfd, CMD_STATUS_READY);
@@ -453,7 +504,7 @@ void downloadFileTo(int connfd, const char * basePath, const char * filename, ui
     uint8_t buffer[8192];
 
     uint32_t bytesRemaining = filesize;
-    bool success = true;
+    uint32_t statusCode = CMD_STATUS_READY;
 
     do {
         if (bytesRemaining == 0) {
@@ -467,14 +518,19 @@ void downloadFileTo(int connfd, const char * basePath, const char * filename, ui
         
         ssize_t received = readFull(connfd, buffer, fileBufSize);
         if (received <= 0) {
-            success = false;
+            statusCode = received;
             NOTIFY(50, "read socket error: %d", errno);
             break;
         }
         size_t fileOffset = filesize - bytesRemaining;
         ssize_t writeError = pwrite(fd, buffer, received, fileOffset);
-        if (writeError <= 0) {
-            success = false;
+        if (writeError == -1) {
+            statusCode = errno;
+            // NOTIFY(50, "write file error: %d %d", errno, fd);
+            break;
+        } else if (writeError < received) {
+            // There is a mismatch in bytes read and written
+            statusCode = -1;
             // NOTIFY(50, "write file error: %d %d", errno, fd);
             break;
         }
@@ -485,8 +541,29 @@ void downloadFileTo(int connfd, const char * basePath, const char * filename, ui
 
     close(fd);
     
-    if (!success) {
+    if (statusCode != CMD_STATUS_READY) {
         unlink(filepath);
     }
-    sendStatusCode(connfd, CMD_STATUS_READY);
+    sendStatusCode(connfd, statusCode);
+}
+
+
+std::string getRandomFileName(uint8_t size) {
+    char filename[26];
+    if (size > 25) {
+        // adjust size to max
+        size = 25;
+    }
+
+    memset(filename, 0, sizeof(filename));
+    for(int i = 0; i < size; i++) {
+        int number = rand() % 16;
+        if (number > 9) {
+            filename[i] = number + 'A' - 10;  
+        } else {
+            filename[i] = number + '0';
+        }
+    }
+
+    return std::string(filename);
 }

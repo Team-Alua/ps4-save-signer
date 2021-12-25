@@ -14,7 +14,7 @@ void clientHandler(int connfd);
 void serverThread() {
     // Don't crash when writing to a closed connection
     signal(SIGPIPE, SIG_IGN);
-    
+
     int sockfd;
     int connfd;
     socklen_t addrLen;
@@ -67,7 +67,7 @@ void serverThread() {
 
 void clientHandler(int connfd) {
     sendStatusCode(connfd, CMD_STATUS_READY);
-
+    Log("Client connected!");
     while (true) {
         PacketHeader pHeader;
 
@@ -100,4 +100,5 @@ void clientHandler(int connfd) {
         }
     }
     close(connfd);
+    Log("Client disconnected!");
 }

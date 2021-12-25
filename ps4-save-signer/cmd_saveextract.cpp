@@ -1,12 +1,13 @@
 #include "cmd_saveextract.hpp"
 
 
-struct __attribute((packed)) SaveExtractPacket {
+struct __attribute__ ((packed)) SaveExtractPacket {
     char dirName[0x20];
     char titleId[0x10];
     char zipname[0x30];
     uint64_t saveBlocks;
 };
+
 
 static void doSaveExtract(int, SaveExtractPacket *);
 
@@ -25,12 +26,21 @@ void handleSaveExtract(int connfd, PacketHeader * pHeader) {
     } else {
         sendStatusCode(connfd, CMD_STATUS_READY);    
     }
-
+    Log("Successfully received command to extract save.");
+    Log("zip: %s titleId: %s dirName: %s saveBlocks: %l", uploadPacket.zipname, uploadPacket.titleId, uploadPacket.dirName, uploadPacket.saveBlocks);
     doSaveExtract(connfd, &uploadPacket);
 }
+int on_extract_entry(const char *filename, void *arg) {
+    Log("Extracting %s", filename);
+    return 0;
+}
+
 
 static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
     do {
+        // should be able to use this multiple times
+        char reusablePath[256];
+        memset(reusablePath, 0, sizeof(reusablePath));
 
         char fingerprint[80];
         memset(fingerprint, 0, sizeof(fingerprint));
@@ -61,6 +71,8 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
+        Log("Successfully temp save.");
+    
 
         OrbisSaveDataMountPoint tempMp;
         memset(&tempMp, 0, sizeof(OrbisSaveDataMountPoint));
@@ -74,28 +86,35 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
+        Log("Successfully unmounted temp save.");
 
-        char zipPath[256];
-        memset(zipPath, 0, sizeof(zipPath));
-        strcpy(zipPath, "/data/teamalua/uploads/");
+        memset(reusablePath, 0, sizeof(reusablePath));
+        char * zipPath = reusablePath;
+        strcpy(zipPath, "/data/teamalua/uploads/"); 
         strcat(zipPath, saveExtractPacket->zipname);
 
 
         // Update files
-        char targetDirectory[256];
+        char targetDirectory[48];
 
         memset(targetDirectory, 0, sizeof(targetDirectory));
         
+        // 48
         sprintf(targetDirectory,"/user/home/%x/savedata/%s/", getUserId(), saveExtractPacket->titleId);
-
-        int zipExtractStatus = zip_extract(zipPath, targetDirectory, NULL, NULL);
+        Log("Extracting %s to %s", zipPath, targetDirectory);
         
+        // __asm__ __volatile("int3");
+
+        int zipExtractStatus = zip_extract(zipPath, targetDirectory, on_extract_entry, NULL);
         if (zipExtractStatus < 0) {
-            sendStatusCode(connfd, zipExtractStatus);
+            Log("Failed to extract to %s with error %ld !", targetDirectory, errno);
+            sendStatusCode(connfd, errno);
             break;
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
+        Log("Extracted to %s !", targetDirectory);
+
 
         OrbisSaveDataMount mount;
         // Send files back
@@ -104,13 +123,14 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         mount.dirName = saveExtractPacket->dirName;
         mount.titleId = saveExtractPacket->titleId;
         mount.blocks = saveExtractPacket->saveBlocks;
-        mount.mountMode = 8 | 1;
+        mount.mountMode =  ORBIS_SAVE_DATA_MOUNT_MODE_DESTRUCT_OFF;
+        mount.mountMode |= ORBIS_SAVE_DATA_MOUNT_MODE_RDONLY;
         mount.userId = getUserId();
         mount.fingerprint = fingerprint;
 
         OrbisSaveDataMountResult mountResult;
         memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
-
+        // /user/home/1388b6a0/savedata/CUSA05571
         int32_t mountErrorCode = sceSaveDataMount(&mount, &mountResult);
 
         if (mountErrorCode < 0) {
@@ -119,65 +139,60 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
+        Log("Success! Mount can be found at %s .", mountResult.mountPathName);
+
 
         do {
-           // zip up all the files 
-            std::vector<std::string> folders;
-            char mountFolder[256];
-            memset(mountFolder, 0, sizeof(mountFolder));
-            strcpy(mountFolder, "/mnt/sandbox/BREW00085_000");
-            strcat(mountFolder, mountResult.mountPathName);
-            strcat(mountFolder, "/");
+            // zip up all the files 
+            std::vector<std::string> zipFileNames;
+            memset(reusablePath, 0, sizeof(reusablePath));
+            char * mountFolder = reusablePath;
+            sprintf(mountFolder, "/mnt/sandbox/BREW00085_000%s/", mountResult.mountPathName);
 
-            int result = recursiveList(mountFolder, "", folders);
+            int result = recursiveList(mountFolder, "", zipFileNames);
             if (result != 0) {
                 // report this as an error
                 break;
             }
-
-            // TODO: Do not hardcode this. Have it auto generate
-            const char * outZipPath = "/tmp/owo.zip";
-            struct zip_t *archive = zip_open(outZipPath, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
-
-            char fullname[256];
-            bool success = true;
-            for (std::string file : folders) {
-                memset(fullname, 0, sizeof(fullname));
-                strncpy(fullname, mountFolder, strlen(mountFolder));
-                strncat(fullname, file.c_str(), strlen(file.c_str()));
-                zip_entry_open(archive, file.c_str());
-				if (zip_entry_fwrite(archive, fullname) != 0) {
-                    success = false; 
-				}
-				zip_entry_close(archive);
-                if (!success) {
-                    break;
-                }
+            Log("There are %i files in %s .", zipFileNames.size(), mountFolder);
+            std::vector<std::string> absoluteFilePaths;
+            char saveFilePath[128];
+            for (int i = 0; i < zipFileNames.size(); i++) {
+                memset(saveFilePath, 0, sizeof(saveFilePath));
+                sprintf(saveFilePath, "%s%s", mountFolder, zipFileNames[i].c_str());
+                absoluteFilePaths.push_back(std::string(saveFilePath));
             }
 
-            zip_close(archive);
 
+            const char * tmpDirectory = "/data/teamalua/temp/";
+            char outZipPath[48];
+            memset(outZipPath, 0, sizeof(outZipPath));
+            mkdir(outZipPath, 0777);
 
-            if (!success) {
-                // delete then send back an error
-            }
+            char outZipFileName[14];
+            memset(outZipFileName, 0, sizeof(outZipFileName));
+            sprintf(outZipFileName, "%s.zip", getRandomFileName(8).c_str());
 
-            std::vector<std::string> files;
+            sprintf(outZipPath, "%s%s", tmpDirectory, outZipFileName);
 
-            files.push_back("owo.zip");
-
-            if (transferFiles(connfd, "/tmp/", files, files) != 0) {
-                remove("/tmp/owo.zip");
+            if (zip_partial_directory(outZipPath, absoluteFilePaths, zipFileNames) != 0) {
                 break;
             }
-            remove("/tmp/owo.zip");
-            // report as success here
+
+            Log("Transferring dump back to client.");
+
+            if (transferFile(connfd, outZipPath, outZipFileName) != 0) {
+                Log("Transfer failed.");
+                remove(outZipPath);
+                break;
+            }
+            remove(outZipPath);
+
         } while(0);
 
         OrbisSaveDataMountPoint mp;
         memset(&mp, 0, sizeof(OrbisSaveDataMountPoint));
-        strcpy(mp.data, tempMountResult.mountPathName);
-        
+        strcpy(mp.data, mountResult.mountPathName);
 
         int32_t umountErrorCode = sceSaveDataUmount(&mp);
         
@@ -187,6 +202,7 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
+        Log("Unmounted save.");
 
 
         // Delete save
@@ -202,5 +218,6 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
         } else {
             sendStatusCode(connfd, CMD_STATUS_READY);
         }
+        Log("Deleted save.");
     } while(false);
 }

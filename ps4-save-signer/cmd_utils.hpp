@@ -21,6 +21,7 @@
 #include <string>
 
 #include "util.hpp"
+#include "log.hpp"
 #include "cmd_constants.hpp"
 
 struct __attribute((packed)) PacketHeader {
@@ -28,6 +29,8 @@ struct __attribute((packed)) PacketHeader {
     uint32_t cmd;
     uint32_t size;
 };
+
+std::string getRandomFileName(uint8_t size);
 
 int getPacketHeader(int connfd, PacketHeader * packetHeader);
 
@@ -45,9 +48,11 @@ int recursiveDelete(const char * sourceDirectoryPath);
 
 int recursiveList(const char * sourceDirectoryPath, const char * baseDirectory, std::vector<std::string> & files);
 
-int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths);
+static int _transferFile(int connfd, int fd, size_t size);
 
-int transferFile(int connfd, int fd, size_t size);
+int transferFile(int connfd, const char * filePath, std::string fileName);
+
+int transferFiles(int connfd, const char * baseDirectory, std::vector<std::string> relFilePaths, std::vector<std::string> outPaths);
 
 long getFileSize(const char *filename);
 

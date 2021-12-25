@@ -26,18 +26,31 @@ def sendZip(zipPath, targetpath):
     statusCode = getStatusCode()
     if statusCode != 0x70000001:
         print(hex(statusCode))
-        print(int.from_bytes(client.recv(4), "little", signed=True))
+        client.close()
         return
     print("Param is valid param")
-
     
-    client.send(targetpath.encode())
-    client.send(len(data).to_bytes(4, "little"))
+    client.sendall(targetpath.encode())
+    statusCode = getStatusCode()
+    if statusCode != 0x70000001:
+        print(hex(statusCode))
+        client.close()
+        return
+    print('Successfully sent file path')
+
+    client.sendall(len(data).to_bytes(4, "little"))
+
+    statusCode = getStatusCode()
+    if statusCode != 0x70000001:
+        print(hex(statusCode))
+        client.close()
+        return
+    print('Successfully sent file size')
+
     # Check if able to open file
     statusCode = getStatusCode()
     if statusCode != 0x70000001:
         print(hex(statusCode))
-        print(int.from_bytes(client.recv(4), "little", signed=True))
         return
     print("Was able to create a file descriptor")
 
@@ -48,6 +61,7 @@ def sendZip(zipPath, targetpath):
     statusCode = getStatusCode()
     if statusCode != 0x70000001:
         print(hex(statusCode))
-
+        return
+    print('Successfully sent file')
 
 # sendZip("local.zip", "PS4.zip")

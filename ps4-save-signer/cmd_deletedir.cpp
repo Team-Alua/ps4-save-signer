@@ -28,7 +28,7 @@ void handleDirectoryDelete(int connfd, PacketHeader * pHeader) {
         return;
     }
 
-    // add check for /../ or ../ within path
+    // TODO: add check for /../ or ../ within path
 
     char targetFolder[256];
     memset(&targetFolder, 0, 256);

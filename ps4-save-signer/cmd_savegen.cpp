@@ -34,11 +34,10 @@ void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
 static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId) {
     char paramSfoPath[256];
     memset(paramSfoPath, 0, sizeof(paramSfoPath));
-    strcpy(paramSfoPath, baseMountDirectory);
-    strcat(paramSfoPath, "sce_sys/param.sfo");
+    sprintf(paramSfoPath, "%s%s", baseMountDirectory, "sce_sys/param.sfo");
     int fd = open(paramSfoPath, O_RDWR, 0);
     if (fd < 0) {
-        NOTIFY(300, "Failed to load %s %d", paramSfoPath, errno);
+        Log("Failed to load %s %d", paramSfoPath, errno);
         return false;
     }
     uint8_t tryCount = 10;
@@ -46,7 +45,7 @@ static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accoun
     do {
         off_t fileSize = lseek(fd, 0x15C, SEEK_SET);
         if (fileSize == -1) {
-            NOTIFY(300, "Failed to seek to 0x15C for %s", paramSfoPath);
+            Log("Failed to seek to 0x15C for %s - %ld", paramSfoPath, errno);
             break;
         }
         ssize_t written = write(fd, &accountId, sizeof(accountId));
@@ -56,7 +55,7 @@ static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accoun
         }
         tryCount--;
         if (tryCount == 0) {
-            NOTIFY(300, "Failed to write 10 times for %s", paramSfoPath);
+            Log("Failed to write 10 times for %s", paramSfoPath);
             break;
         }
     } while (true);
@@ -128,24 +127,26 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             uint32_t type = ORBIS_SAVE_DATA_PARAM_TYPE_ALL;
             int32_t setParamResult = sceSaveDataSetParam(&mp, type, &saveGenPacket->saveParams, sizeof(saveGenPacket->saveParams));
             if (setParamResult < 0) {
+                saveModError = setParamResult;
                 break;
             }
-            saveModError = CMD_SAVE_GEN_COPY_FOLDER_FAILED;
 
-
-            char zipPath[256];
-            memset(zipPath, 0, sizeof(zipPath));
-            strcpy(zipPath, "/data/teamalua/uploads/");
-            strcat(zipPath, saveGenPacket->zipname);
-            
-            int zipExtractStatus = zip_extract(zipPath, saveMountDirectory, NULL, NULL);
-            
-            // TODO: Get return code and check if it was removed
-            remove(zipPath);
-
-            if (zipExtractStatus < 0) {
-                break;
+            if (strlen(saveGenPacket->zipname) > 0) {
+                char zipPath[256];
+                memset(zipPath, 0, sizeof(zipPath));
+                strcpy(zipPath, "/data/teamalua/uploads/");
+                strcat(zipPath, saveGenPacket->zipname);
+                
+                int zipExtractStatus = zip_extract(zipPath, saveMountDirectory, NULL, NULL);
+                // TODO: Get return code and check if it was removed
+                if (zipExtractStatus < 0) {
+                    saveModError = errno;
+                    remove(zipPath);
+                    break;
+                }
+                remove(zipPath);
             }
+
 
             success = true;
         } while(0);
@@ -161,44 +162,68 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         }
         
         if (success) {
+            
             sendStatusCode(connfd, CMD_STATUS_READY);
 
-            // TODO: Maybe only send a zip?
-            std::vector<std::string> inFiles;
+            std::vector<std::string> relFiles;
             std::vector<std::string> outFiles;
-            char baseDirectory[256];
 
-            char pfsPath[256];
-            char binPath[256];
-            char binOutPath[256];
-            
+
+            const char * tmpDirectory = "/data/teamalua/temp/";
+            char outZipPath[48];
+            memset(outZipPath, 0, sizeof(outZipPath));
+            strcpy(outZipPath, tmpDirectory);
+            mkdir(outZipPath, 0777);
+
+            char outZipFileName[48];
+            memset(outZipFileName, 0, sizeof(outZipFileName));
+            sprintf(outZipFileName, "%s.zip", getRandomFileName(8).c_str());
+
+            strcat(outZipPath, outZipFileName);
+
+            // TODO: zip this up on the PS4 and send
+            char baseDirectory[128];
             memset(baseDirectory, 0, sizeof(baseDirectory));
-            sprintf(baseDirectory,"/user/home/%x/savedata/%s/", getUserId(), saveGenPacket->titleId);
+            sprintf(baseDirectory,"/user/home/%x/savedata/%s", getUserId(), saveGenPacket->titleId);
+
+            char baseExportDirectory[128];
+            memset(baseExportDirectory, 0, sizeof(baseExportDirectory));
+            sprintf(baseExportDirectory, "PS4/SAVEDATA/%lx/%s", saveGenPacket->psnAccountId, saveGenPacket->titleId);
 
 
+            char pfsPath[128];
             memset(pfsPath, 0, sizeof(pfsPath));            
-            strcpy(pfsPath, saveGenPacket->dirName);
-            strcat(pfsPath, ".bin");
+            sprintf(pfsPath, "%s/%s.bin", baseDirectory, saveGenPacket->dirName);
+            relFiles.push_back(pfsPath);
 
-
+            char binPath[128];
             memset(binPath, 0, sizeof(binPath));
-            strcpy(binPath, "sdimg_");
-            strcat(binPath, saveGenPacket->dirName);
+            sprintf(binPath, "%s/sdimg_%s", baseDirectory, saveGenPacket->dirName);
+            relFiles.push_back(binPath);
 
+            char pfsOutPath[128];
+            memset(pfsOutPath, 0, sizeof(pfsPath));            
+            sprintf(pfsOutPath, "%s/%s.bin", baseExportDirectory, saveGenPacket->dirName);
+            outFiles.push_back(pfsOutPath);
+
+            char binOutPath[128];
             memset(binOutPath, 0, sizeof(binOutPath));
-            strcpy(binOutPath, saveGenPacket->dirName);
+            sprintf(binOutPath, "%s/%s", baseExportDirectory, saveGenPacket->dirName);
+            outFiles.push_back(binOutPath);
 
-            inFiles.push_back(std::string(pfsPath));
-            outFiles.push_back(std::string(pfsPath));
-            inFiles.push_back(std::string(binPath));
-            outFiles.push_back(std::string(binOutPath));
+            if (zip_partial_directory(outZipPath, relFiles, outFiles) != 0) {
+                sendStatusCode(connfd, errno);
+                break;
+            } else {
+                sendStatusCode(connfd, CMD_STATUS_READY);
+            }
 
-            transferFiles(connfd, baseDirectory, inFiles, outFiles);
+            if (transferFile(connfd, outZipPath, outZipFileName) != 0) {
+                break;
+            }
         } else {
             sendStatusCode(connfd, saveModError);
         }
-
-        // delete zip file here
 
         OrbisSaveDataDelete del;
         memset(&del, 0, sizeof(OrbisSaveDataDelete));

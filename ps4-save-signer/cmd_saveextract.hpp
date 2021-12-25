@@ -15,7 +15,10 @@
 #include "cmd_constants.hpp"
 #include "cmd_utils.hpp"
 #include "errcodes.hpp"
+
 #include "util.hpp"
+#include "log.hpp"
+#include "zip_util.hpp"
 
 #pragma once
 
