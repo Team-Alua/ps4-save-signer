@@ -54,7 +54,7 @@ def sendFile(filepath, targetpath):
     if statusCode != 0x70000001:
         print(hex(statusCode))
         return
-    print("Was able to create a file descriptor")
+    print("Was able to get a file descriptor")
 
     
     client.sendall(data)
@@ -172,7 +172,7 @@ def receiveSave(header: dict):
     print("Mounted deleted")
 
 header = {
-    "psnAccountId": 0x5e8f03d08be1dbbc,
+    "psnAccountId": 0x0000000000000000,
     "dirName": "SAVE",
     "titleId": "CUSA01130",
     "zipName": "",

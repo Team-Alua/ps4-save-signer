@@ -22,4 +22,12 @@
 
 #pragma once
 
+struct __attribute__ ((packed)) SaveExtractPacket {
+    char dirName[0x20];
+    char titleId[0x10];
+    char zipname[0x30];
+    uint64_t saveBlocks;
+};
+
+
 void handleSaveExtract(int connfd, PacketHeader * pHeader);

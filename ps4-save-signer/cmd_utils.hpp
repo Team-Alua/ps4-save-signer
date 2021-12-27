@@ -8,7 +8,6 @@
 #include <dirent.h>
 #include <errno.h>
 
-#include <cstdint>
 
 #include <stdint.h>
 
@@ -17,8 +16,11 @@
 #include <sys/sendfile.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <vector>
 #include <string>
+#include <thread>
+#include <random>
 
 #include "util.hpp"
 #include "log.hpp"
@@ -57,3 +59,11 @@ int transferFiles(int connfd, const char * baseDirectory, std::vector<std::strin
 long getFileSize(const char *filename);
 
 void downloadFileTo(int connfd, const char * basePath, const char * filename, uint32_t filesize);
+
+
+typedef void (*on_save_mount) (int32_t errorCode, OrbisSaveDataMountResult& , void * args); 
+typedef void (*on_save_unmount) (int32_t errorCode, void * args); 
+
+int32_t saveMountUnMount(OrbisSaveDataMount & mount, on_save_mount mf, void * mfArgs, on_save_unmount umf,  void * umfArgs);
+
+bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId);

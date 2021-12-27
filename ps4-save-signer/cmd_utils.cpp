@@ -554,10 +554,42 @@ std::string getRandomFileName(uint8_t size) {
         // adjust size to max
         size = 25;
     }
+    int randomData = open("/dev/urandom", O_RDONLY);
+
+    uint8_t myRandomData[26];
+
+    if (randomData < 0)
+    {
+        Log("Failed to read /dev/urandom - %lx", errno);
+        Log("Falling back to microseconds for randomness.");
+        for (int i = 0; i < size; i++) {
+            uint64_t microseconds_since_epoch = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            myRandomData[i] = microseconds_since_epoch % 0x100;
+        }
+    }
+    else
+    {
+        size_t randomDataLen = 0;
+        int failed = 0;
+        while (randomDataLen < sizeof(myRandomData))
+        {
+            ssize_t result = read(randomData, myRandomData + randomDataLen, sizeof(myRandomData) - randomDataLen);
+            if (result < 0)
+            {
+                failed++;
+                if (failed == 10) {
+                    break;
+                }
+                continue;
+            }
+            randomDataLen += result;
+        }
+        close(randomData);
+    }
 
     memset(filename, 0, sizeof(filename));
     for(int i = 0; i < size; i++) {
-        int number = rand() % 16;
+        int number = myRandomData[i] % 16; // generates number in the range 0..15 
         if (number > 9) {
             filename[i] = number + 'A' - 10;  
         } else {
@@ -566,4 +598,82 @@ std::string getRandomFileName(uint8_t size) {
     }
 
     return std::string(filename);
+}
+
+#include <chrono>
+
+int32_t saveMountUnMount(OrbisSaveDataMount & mount, on_save_mount mf, void * mfArgs, on_save_unmount umf,  void * umfArgs){
+    OrbisSaveDataMountResult mountResult;
+    memset(&mountResult, 0, sizeof(OrbisSaveDataMountResult));
+
+    int32_t mountErrorCode = sceSaveDataMount(&mount, &mountResult);
+    
+    if (mf != NULL) {
+        mf(mountErrorCode, mountResult, mfArgs);
+    }
+
+    if (mountErrorCode != 0) {
+        // Delete save
+        OrbisSaveDataDelete del;
+        memset(&del, 0, sizeof(OrbisSaveDataDelete));
+        del.userId = getUserId();
+        del.dirName = (OrbisSaveDataDirName *) mount.dirName;
+        del.titleId = (OrbisSaveDataTitleId *) mount.titleId;
+        int32_t deleteSaveErrorCode = sceSaveDataDelete(&del);
+        if (deleteSaveErrorCode < 0) {
+            Log("Failed to delete save after saveMountUnMount error. Error: %lx", deleteSaveErrorCode);
+        } else {
+            Log("Successfully deleted save after saveMountUnMount error.");
+        }
+        return mountErrorCode;
+    }
+    OrbisSaveDataMountPoint mp;
+    memset(&mp, 0, sizeof(OrbisSaveDataMountPoint));
+    strcpy(mp.data, mountResult.mountPathName);
+    
+    int32_t tempUmountErrorCode = sceSaveDataUmount(&mp);
+    for (int count = 0; count < 10 && tempUmountErrorCode == 0x809f0003; count++) {
+        tempUmountErrorCode = sceSaveDataUmount(&mp);
+        std::chrono::milliseconds oneSecond{1000};
+        std::this_thread::sleep_for(oneSecond);
+    }
+
+    if (umf != NULL) {
+        umf(tempUmountErrorCode, umfArgs);
+    }
+
+    return tempUmountErrorCode;
+}
+
+bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId) {
+    char paramSfoPath[256];
+    memset(paramSfoPath, 0, sizeof(paramSfoPath));
+    sprintf(paramSfoPath, "%s%s", baseMountDirectory, "sce_sys/param.sfo");
+    int fd = open(paramSfoPath, O_RDWR, 0);
+    if (fd < 0) {
+        Log("Failed to load %s %d", paramSfoPath, errno);
+        return false;
+    }
+    uint8_t tryCount = 10;
+    bool success = false;
+    do {
+        off_t fileSize = lseek(fd, 0x15C, SEEK_SET);
+        if (fileSize == -1) {
+            Log("Failed to seek to 0x15C for %s - %ld", paramSfoPath, errno);
+            break;
+        }
+        ssize_t written = write(fd, &accountId, sizeof(accountId));
+        if (written == sizeof(accountId)) {
+            success = true;
+            break;
+        }
+        tryCount--;
+        if (tryCount == 0) {
+            Log("Failed to write 10 times for %s", paramSfoPath);
+            break;
+        }
+    } while (true);
+    fsync(fd);
+    close(fd);
+    return success;
 }

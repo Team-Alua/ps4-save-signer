@@ -35,9 +35,6 @@ void handleUploadFile(int connfd, PacketHeader * pHeader) {
     }
     
     Log("Successfully got file size.");
-
-
-    // TODO: log stuff in here
-    // TODO: ensure filename does not contain any dots
+    
     downloadFileTo(connfd, "/data/teamalua/uploads/", filename, filesize);
 }

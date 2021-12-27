@@ -56,7 +56,7 @@ def sendZip(zipPath, targetpath):
     if statusCode != 0x70000001:
         print(hex(statusCode))
         return
-    print("Was able to create a file descriptor")
+    print("Was able to get a file descriptor")
 
     # Pipe file 
     client.sendall(data)
@@ -91,7 +91,7 @@ def receiveSaveDump(extractHeader: dict, outDir: str = ""):
     dataArr = createSaveExtractHeader(extractHeader)
     client.sendall(dataArr)
     
-    # check the gen headers were okay
+    # check the extract headers were okay
     statusCode = getStatusCode()
     if statusCode != 0x70000001:
         print(hex(statusCode))

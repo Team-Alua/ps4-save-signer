@@ -52,7 +52,7 @@ def sendZip(zipPath, targetpath):
     if statusCode != 0x70000001:
         print(hex(statusCode))
         return
-    print("Was able to create a file descriptor")
+    print("Was able to get a file descriptor")
 
     
     client.sendall(data)

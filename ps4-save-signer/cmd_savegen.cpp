@@ -1,4 +1,5 @@
 #include "cmd_savegen.hpp"
+#include <inttypes.h>
 
 struct __attribute__ ((packed)) SaveGeneratorPacket {
     uint64_t psnAccountId;
@@ -31,38 +32,6 @@ void handleSaveGenerating(int connfd, PacketHeader * pHeader) {
     doSaveGenerator(connfd, &uploadPacket);
 }
 
-static bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId) {
-    char paramSfoPath[256];
-    memset(paramSfoPath, 0, sizeof(paramSfoPath));
-    sprintf(paramSfoPath, "%s%s", baseMountDirectory, "sce_sys/param.sfo");
-    int fd = open(paramSfoPath, O_RDWR, 0);
-    if (fd < 0) {
-        Log("Failed to load %s %d", paramSfoPath, errno);
-        return false;
-    }
-    uint8_t tryCount = 10;
-    bool success = false;
-    do {
-        off_t fileSize = lseek(fd, 0x15C, SEEK_SET);
-        if (fileSize == -1) {
-            Log("Failed to seek to 0x15C for %s - %ld", paramSfoPath, errno);
-            break;
-        }
-        ssize_t written = write(fd, &accountId, sizeof(accountId));
-        if (written == sizeof(accountId)) {
-            success = true;
-            break;
-        }
-        tryCount--;
-        if (tryCount == 0) {
-            Log("Failed to write 10 times for %s", paramSfoPath);
-            break;
-        }
-    } while (true);
-    fsync(fd);
-    close(fd);
-    return success;
-}
 
 
 static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
@@ -81,7 +50,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         mount.titleId = saveGenPacket->titleId;
         mount.blocks = saveGenPacket->saveBlocks;
         mount.mountMode =  ORBIS_SAVE_DATA_MOUNT_MODE_DESTRUCT_OFF;
-        mount.mountMode |= ORBIS_SAVE_DATA_MOUNT_MODE_CREATE;
+        mount.mountMode |= ORBIS_SAVE_DATA_MOUNT_MODE_CREATE2;
         mount.mountMode |= ORBIS_SAVE_DATA_MOUNT_MODE_RDWR;
         mount.userId = getUserId();
         mount.fingerprint = fingerprint;
@@ -141,12 +110,9 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
                 // TODO: Get return code and check if it was removed
                 if (zipExtractStatus < 0) {
                     saveModError = errno;
-                    remove(zipPath);
                     break;
                 }
-                remove(zipPath);
             }
-
 
             success = true;
         } while(0);
@@ -162,9 +128,12 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         }
         
         if (success) {
-            
             sendStatusCode(connfd, CMD_STATUS_READY);
+        } else {
+            sendStatusCode(connfd, saveModError);
+        }
 
+        if (success) {
             std::vector<std::string> relFiles;
             std::vector<std::string> outFiles;
 
@@ -188,7 +157,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
 
             char baseExportDirectory[128];
             memset(baseExportDirectory, 0, sizeof(baseExportDirectory));
-            sprintf(baseExportDirectory, "PS4/SAVEDATA/%lx/%s", saveGenPacket->psnAccountId, saveGenPacket->titleId);
+            sprintf(baseExportDirectory, "PS4/SAVEDATA/%016lx/%s", saveGenPacket->psnAccountId, saveGenPacket->titleId);
 
 
             char pfsPath[128];
@@ -210,7 +179,7 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             memset(binOutPath, 0, sizeof(binOutPath));
             sprintf(binOutPath, "%s/%s", baseExportDirectory, saveGenPacket->dirName);
             outFiles.push_back(binOutPath);
-
+            // TODO: If this fails then it will not delete the mounted save 
             if (zip_partial_directory(outZipPath, relFiles, outFiles) != 0) {
                 sendStatusCode(connfd, errno);
                 break;
@@ -221,8 +190,6 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
             if (transferFile(connfd, outZipPath, outZipFileName) != 0) {
                 break;
             }
-        } else {
-            sendStatusCode(connfd, saveModError);
         }
 
         OrbisSaveDataDelete del;

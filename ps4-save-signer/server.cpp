@@ -4,7 +4,8 @@
 #include "cmd_uploadfile.hpp"
 #include "cmd_savegen.hpp"
 #include "cmd_saveextract.hpp"
-#include "cmd_deletedir.hpp"
+#include "cmd_deleteupload.hpp"
+#include "cmd_resign.hpp"
 #include "signal.h"
 #define PORT 9025
 
@@ -12,6 +13,7 @@
 void clientHandler(int connfd);
 
 void serverThread() {
+    srand(time(NULL));
     // Don't crash when writing to a closed connection
     signal(SIGPIPE, SIG_IGN);
 
@@ -88,8 +90,12 @@ void clientHandler(int connfd) {
                 handleSaveExtract(connfd, &pHeader);
                 break;
             }
-            case CMD_DELETE_UPLOAD_DIRECTORY: {
-                handleDirectoryDelete(connfd, &pHeader);
+            case CMD_SAVE_RESIGN: {
+                handleSaveResign(connfd, &pHeader);
+                break;
+            }
+            case CMD_DELETE_UPLOAD: {
+                handleUploadDelete(connfd, &pHeader);
                 break;
             }
             default: {
