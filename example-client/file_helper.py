@@ -11,7 +11,7 @@ def pipe_read_in(socketHandle, filePath, size):
             buffer = socketHandle.recv(buffer_size)
             if not buffer:
                 break
-            fileHandle.write(fileData)
+            fileHandle.write(buffer)
             buffer_read = len(buffer)
             offset += buffer_read
             size -= buffer_read

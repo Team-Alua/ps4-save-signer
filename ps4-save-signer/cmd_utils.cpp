@@ -492,7 +492,7 @@ void downloadFileTo(int connfd, const char * basePath, const char * filename, ui
     strncpy(fileParentPath, filepath, slashIndex + 1);
     _mkdir(fileParentPath);
 
-    int fd = open(filepath, O_CREAT | O_WRONLY, 0777);
+    int fd = open(filepath, O_CREAT | O_WRONLY | O_TRUNC, 0777);
 
     if (fd == -1) {
         sendStatusCode(connfd, errno);
@@ -649,7 +649,7 @@ bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId) {
     char paramSfoPath[256];
     memset(paramSfoPath, 0, sizeof(paramSfoPath));
     sprintf(paramSfoPath, "%s%s", baseMountDirectory, "sce_sys/param.sfo");
-    int fd = open(paramSfoPath, O_RDWR, 0);
+    int fd = open(paramSfoPath, O_RDWR, 0700);
     if (fd < 0) {
         Log("Failed to load %s %d", paramSfoPath, errno);
         return false;

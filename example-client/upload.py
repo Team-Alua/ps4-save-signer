@@ -27,7 +27,7 @@ def sendZip(zipPath, targetpath):
         print(hex(statusCode))
         client.close()
         return
-    print("Param is valid param")
+    print("Successfully sent upload request")
     
     client.sendall(targetpath.encode())
     statusCode = getStatusCode()

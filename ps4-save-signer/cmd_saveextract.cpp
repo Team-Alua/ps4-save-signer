@@ -124,7 +124,7 @@ static void doSaveExtract(int connfd, SaveExtractPacket * saveExtractPacket) {
             del.dirName = (OrbisSaveDataDirName *) saveExtractPacket->dirName;
             del.titleId = (OrbisSaveDataTitleId *) saveExtractPacket->titleId;
             int32_t deleteUserSaves = sceSaveDataDelete(&del);
-            Log("Failed to extract to %s with error %ld !", targetDirectory, errno);
+            Log("Failed to extract to %s!", targetDirectory);
         }
         
         if (zipExtractStatus < 0) {
