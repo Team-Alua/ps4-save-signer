@@ -13,7 +13,6 @@
 void clientHandler(int connfd);
 
 void serverThread() {
-    srand(time(NULL));
     // Don't crash when writing to a closed connection
     signal(SIGPIPE, SIG_IGN);
 

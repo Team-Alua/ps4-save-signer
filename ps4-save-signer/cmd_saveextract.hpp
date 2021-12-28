@@ -23,6 +23,7 @@
 #pragma once
 
 struct __attribute__ ((packed)) SaveExtractPacket {
+    uint64_t psnAccountId;
     char dirName[0x20];
     char titleId[0x10];
     char zipname[0x30];

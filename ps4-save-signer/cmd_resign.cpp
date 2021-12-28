@@ -46,6 +46,8 @@ void onRealMount(int32_t errorCode, OrbisSaveDataMountResult& mountResult, void 
     if (!changeSaveAccountId(mountPath, realArgs.targetPsnAccountId)) {
         Log("Failed to change psn id from %016lx to %016lx", realArgs.originalPsnAccountId, realArgs.targetPsnAccountId);
         realArgs.errorCode = -1;
+    } else {
+       Log("Successfully changeed psn id from %016lx to %016lx", realArgs.originalPsnAccountId, realArgs.targetPsnAccountId);
     }
 }
 

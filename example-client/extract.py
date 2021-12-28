@@ -5,6 +5,7 @@ import re
 import os
 import struct
 import socket
+from file_helper import get_size, pipe_write_out
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(('10.0.0.4', 9025))
 from_server = client.recv(4)
@@ -22,9 +23,6 @@ def getStatusCode():
     return statusCode
 
 def sendZip(zipPath, targetpath):
-    data = None
-    with open(zipPath, 'rb') as file:
-        data = file.read()
     # Check if param is valid
     sendMagic(0x70200000, len(targetpath))
     statusCode = getStatusCode()
@@ -42,7 +40,7 @@ def sendZip(zipPath, targetpath):
         return
     print('Successfully sent file path')
 
-    client.sendall(len(data).to_bytes(4, "little"))
+    client.sendall(get_size(zipPath).to_bytes(4, "little"))
 
     statusCode = getStatusCode()
     if statusCode != 0x70000001:
@@ -58,8 +56,8 @@ def sendZip(zipPath, targetpath):
         return
     print("Was able to get a file descriptor")
 
-    # Pipe file 
-    client.sendall(data)
+
+    pipe_write_out(client, zipPath)
 
     # Last status code
     statusCode = getStatusCode()
@@ -68,8 +66,10 @@ def sendZip(zipPath, targetpath):
         return
     print('Successfully sent file')
 
+
 def createSaveExtractHeader(entries: dict):
     dataArr = b""
+    dataArr += struct.pack("<Q", entries["psnId"])
     dataArr += entries["dirName"].ljust(0x20, "\x00").encode()
     dataArr += entries["titleId"].ljust(0x10, "\x00").encode()
     dataArr += entries["zipname"].ljust(0x30, "\x00").encode()
@@ -229,39 +229,32 @@ def prepareArguments(zipPath: str):
     err, _ = getSaveFiles(zf, files)
     if err:
         return err, None
-    
 
     if len(files) != 2:
         return 'Must only have 2 files in the zip!', None
     if files[0].replace('.bin', '') != files[1].replace('.bin', ''):
         return "Must have correct pair of save files!", None
-    
+
     genericForm = files[0]
     if genericForm.endswith('.bin'):
         genericForm = genericForm[0:len(genericForm) - 4]
     matched = re.search(r"PS4\/SAVEDATA\/([0-9a-fA-F]{16})\/([A-Z]{4}[0-9]{5})\/(.*)$", genericForm)
     psnId, titleId, dirName = matched.groups()
     trueFileName = os.path.basename(genericForm)
-    os.makedirs('ex', exist_ok=True)
 
     # Determine this before sending anything
     extractHeader = {
+        "psnId": int("0x" + psnId, 16),
         "dirName": dirName,
         "titleId": titleId,
         "zipname": "",
         "saveBlocks": int(zf.getinfo(genericForm).file_size/32768)
     }
-    zfFixed = zipfile.ZipFile("PS4_fixed.zip", "w")
-    with zf.open(genericForm) as entry, zfFixed.open('sdimg_' + trueFileName, 'w') as f:
-        shutil.copyfileobj(entry, f)
-    with zf.open(genericForm + '.bin') as entry, zfFixed.open(trueFileName + '.bin', 'w') as f:
-        shutil.copyfileobj(entry, f)
-
-    zfFixed.close()
+    zf.close()
     return extractHeader
 
 extractHeader = prepareArguments("PS41.zip")
 extractHeader["zipname"] = "PS4.zip"
 print(extractHeader)
-sendZip("PS4_fixed.zip", "PS4.zip")
+sendZip("PS4.zip", "PS4.zip")
 receiveSaveDump(extractHeader)

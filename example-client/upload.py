@@ -1,8 +1,9 @@
 import os
 import struct
 import socket
+from file_helper import pipe_write_out, get_size
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('10.0.0.5', 9025))
+client.connect(('10.0.0.4', 9025))
 from_server = client.recv(4)
 print(from_server)
 
@@ -17,10 +18,8 @@ def getStatusCode():
     statusCode = int.from_bytes(client.recv(4, socket.MSG_WAITALL), "little")
     return statusCode
 
+
 def sendZip(zipPath, targetpath):
-    data = None
-    with open(zipPath, 'rb') as file:
-        data = file.read()
     # Check if param is valid
     sendMagic(0x70200000, len(targetpath))
     statusCode = getStatusCode()
@@ -38,7 +37,7 @@ def sendZip(zipPath, targetpath):
         return
     print('Successfully sent file path')
 
-    client.sendall(len(data).to_bytes(4, "little"))
+    client.sendall(get_size(zipPath).to_bytes(4, "little"))
 
     statusCode = getStatusCode()
     if statusCode != 0x70000001:
@@ -54,8 +53,8 @@ def sendZip(zipPath, targetpath):
         return
     print("Was able to get a file descriptor")
 
-    
-    client.sendall(data)
+
+    pipe_write_out(client, zipPath)
 
     # Last status code
     statusCode = getStatusCode()
@@ -64,4 +63,5 @@ def sendZip(zipPath, targetpath):
         return
     print('Successfully sent file')
 
-# sendZip("local.zip", "PS4.zip")
+
+sendZip("PS4.zip", "PS4_test.zip")

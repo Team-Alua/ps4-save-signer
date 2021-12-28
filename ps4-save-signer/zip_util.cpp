@@ -19,20 +19,24 @@ int zip_partial_extract(char * inputZipPath, std::vector<std::string>& inPaths, 
         const char * targetFilePath = outPath.c_str();
 
         Log("%ld - Extracting  %s => %s .", archive, zipFilePath, targetFilePath);
-        if (zip_entry_open(archive, zipFilePath) != 0) {
-            Log("Failed to open %s - %ld.", zipFilePath, errno);
-            statusCode = errno;
+        const int entryOpenErrorCode = zip_entry_open(archive, zipFilePath);
+        if (entryOpenErrorCode < 0) {
+            Log("Failed to open %s - %ld.", zipFilePath, zip_strerror(entryOpenErrorCode));
+            statusCode = entryOpenErrorCode;
             break;
         }
 
-        if (zip_entry_fread(archive, targetFilePath) != 0) {
-            Log("Failed to extract %s - %ld", zipFilePath, errno);
-            statusCode = errno;
+        const int entryReadErrorCode = zip_entry_fread(archive, targetFilePath);
+        
+        if (entryReadErrorCode < 0) {
+            Log("Failed to extract %s - %ld", zipFilePath, zip_strerror(entryReadErrorCode));
+            statusCode = entryReadErrorCode;
         }
+        const int entryCloseErrorCode = zip_entry_close(archive);
 
-        if (zip_entry_close(archive) != 0) {
-            Log("Failed to close %s in archive - ld", zipFilePath, errno);
-            statusCode = errno;
+        if (entryCloseErrorCode < 0) {
+            Log("Failed to close %s in archive - ld", zipFilePath, zip_strerror(entryCloseErrorCode));
+            statusCode = entryCloseErrorCode;
         }
 
         if (statusCode != 0) {
@@ -64,20 +68,25 @@ int zip_partial_directory(char * outZipPath, std::vector<std::string>& inPaths, 
         const char * filename = outPath.c_str();
 
         Log("%ld - Zipping  %s => %s .", archive, fullname, filename);
-        if (zip_entry_open(archive, filename) != 0) {
-            Log("Failed to open %s - %ld.", filename, errno);
-            statusCode = errno;
+        const int entryOpenErrorCode = zip_entry_open(archive, outZipPath);
+        if (entryOpenErrorCode < 0) {
+            Log("Failed to open %s - %ld.", outZipPath, zip_strerror(entryOpenErrorCode));
+            statusCode = entryOpenErrorCode;
             break;
         }
 
-        if (zip_entry_fwrite(archive, fullname) != 0) {
-            Log("Failed to write %s - %ld", fullname, errno);
-            statusCode = errno;
+        const int entryWriteErrorCode = zip_entry_fwrite(archive, fullname);
+        
+        if (entryWriteErrorCode < 0) {
+            Log("Failed to extract %s - %ld", outZipPath, zip_strerror(entryWriteErrorCode));
+            statusCode = entryWriteErrorCode;
         }
 
-        if (zip_entry_close(archive) != 0) {
-            Log("Failed to close archive - %ld", errno);
-            statusCode = errno;
+        const int entryCloseErrorCode = zip_entry_close(archive);
+
+        if (entryCloseErrorCode < 0) {
+            Log("Failed to close %s in archive - ld", outZipPath, zip_strerror(entryCloseErrorCode));
+            statusCode = entryCloseErrorCode;
         }
 
         if (statusCode != 0) {
