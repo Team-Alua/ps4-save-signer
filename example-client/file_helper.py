@@ -24,7 +24,6 @@ SEND_SIZE = 49152
 
 def pipe_write_out(socketHandle, filePath):
     sent_all = False
-    send_amount = 0
     with open(filePath, 'rb') as fileHandle:
         offset = 0
         fileHandle.seek(0, os.SEEK_END)
@@ -32,12 +31,11 @@ def pipe_write_out(socketHandle, filePath):
         fileHandle.seek(0, os.SEEK_SET)
         while offset < size:
             # Ad
-            buffer_size = min(49152, size - offset)
+            buffer_size = min(SEND_SIZE, size - offset)
             buffer = fileHandle.read(buffer_size)
             sent = socketHandle.send(buffer)
             if not sent:
                 break
-            print("Bytes sent:", sent)
             offset += sent
             if sent < buffer_size:
                 fileHandle.seek(offset, os.SEEK_SET)

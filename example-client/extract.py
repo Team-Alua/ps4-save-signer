@@ -2,14 +2,15 @@ import zipfile
 import io
 import re
 
+import sys
 import os
 import struct
 import socket
 from file_helper import get_size, pipe_write_out
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('10.0.0.4', 9025))
+client.connect(('10.0.0.5', 9025))
 from_server = client.recv(4)
-print(from_server)
+# print(from_server)
 
 def sendMagic(cmd, argLength):
     MAGIC = 0x98696b77
@@ -72,7 +73,7 @@ def createSaveExtractHeader(entries: dict):
     dataArr += struct.pack("<Q", entries["psnId"])
     dataArr += entries["dirName"].ljust(0x20, "\x00").encode()
     dataArr += entries["titleId"].ljust(0x10, "\x00").encode()
-    dataArr += entries["zipname"].ljust(0x30, "\x00").encode()
+    dataArr += entries["zipName"].ljust(0x80, "\x00").encode()
     dataArr += struct.pack("<Q", entries["saveBlocks"])
     return dataArr
 
@@ -139,8 +140,7 @@ def receiveSaveDump(extractHeader: dict, outDir: str = ""):
         if statusCode != 0x70000001:
             print("Failed to seek to beginning of file", hex(statusCode))
             continue
-        
-        print("next file is ready");
+
         filePathSize = int.from_bytes(client.recv(8), "little")
         print("File Name Size", filePathSize)
         fileSize = int.from_bytes(client.recv(8), "little")
@@ -149,7 +149,7 @@ def receiveSaveDump(extractHeader: dict, outDir: str = ""):
         relativeFilePath = fileName.decode("utf-8")
         print("File Name", relativeFilePath)
         
-        fullPath = outDir + relativeFilePath
+        fullPath = outDir + extractHeader["zipName"]
         print("File Path", fullPath)
         os.makedirs(os.path.dirname(fullPath) or '.', exist_ok=True)
         # Pipe this
@@ -175,10 +175,9 @@ def receiveSaveDump(extractHeader: dict, outDir: str = ""):
 
 
 def openZip(filePath):
-    data = io.BytesIO(filePath)
     zf = None
     try:
-        zf = zipfile.ZipFile(data, "r")
+        zf = zipfile.ZipFile(filePath, "r")
     except zipfile.BadZipFile as e:
         return e.args[0], None
     except zipfile.LargeZipFile as e:
@@ -217,12 +216,8 @@ def getSaveFiles(zf, files):
     return None, ""
 
 
-import shutil
-
 def prepareArguments(zipPath: str):
-    zipdata = open(zipPath, 'rb')
-    err, zf = openZip(zipdata.read())
-    zipdata.close()
+    err, zf = openZip(zipPath)
     if err:
         return err, None
     files = []
@@ -247,14 +242,20 @@ def prepareArguments(zipPath: str):
         "psnId": int("0x" + psnId, 16),
         "dirName": dirName,
         "titleId": titleId,
-        "zipname": "",
+        "zipName": "",
         "saveBlocks": int(zf.getinfo(genericForm).file_size/32768)
     }
     zf.close()
-    return extractHeader
+    return None, extractHeader
 
-extractHeader = prepareArguments("PS41.zip")
-extractHeader["zipname"] = "PS4.zip"
-print(extractHeader)
-sendZip("PS4.zip", "PS4.zip")
-receiveSaveDump(extractHeader)
+
+def do(local_zip_path, ps4_zip_path, outFolder = '.'):
+    err, extractHeader = prepareArguments(local_zip_path)
+    if err != None:
+        print(err)
+        return
+    print(extractHeader)
+    extractHeader["zipName"] = ps4_zip_path
+    print(extractHeader)
+    sendZip(local_zip_path, ps4_zip_path)
+    receiveSaveDump(extractHeader, outFolder)
