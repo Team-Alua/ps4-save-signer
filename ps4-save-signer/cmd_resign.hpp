@@ -10,15 +10,14 @@ struct __attribute__ ((packed)) SaveResignPacket {
     uint64_t targetPsnAccountId;
     char dirName[0x20];
     char titleId[0x10];
-    char zipname[0x30];
+    char zipname[0x80];
     uint64_t saveBlocks;
 };
 
 
 struct RealMountArgs {
     int connfd;
-    uint64_t originalPsnAccountId;
-    uint64_t targetPsnAccountId;
+    SaveResignPacket * resignPacket;
     uint32_t errorCode;
 };
 

@@ -21,6 +21,7 @@ void handleSaveExtract(int connfd, PacketHeader * pHeader) {
         sendStatusCode(connfd, CMD_STATUS_READY);    
     }
     Log("Successfully received command to extract save.");
+    // TODO: make sure the last character \0
     Log("zip: %s titleId: %s dirName: %s saveBlocks: %l", uploadPacket.zipname, uploadPacket.titleId, uploadPacket.dirName, uploadPacket.saveBlocks);
     doSaveExtract(connfd, &uploadPacket);
 }

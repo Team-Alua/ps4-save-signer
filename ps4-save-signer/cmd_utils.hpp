@@ -67,3 +67,5 @@ typedef void (*on_save_unmount) (int32_t errorCode, void * args);
 int32_t saveMountUnMount(OrbisSaveDataMount & mount, on_save_mount mf, void * mfArgs, on_save_unmount umf,  void * umfArgs);
 
 bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId);
+
+bool fixParamSfoTitleId(const char * baseMountDirectory, const char * titleId);

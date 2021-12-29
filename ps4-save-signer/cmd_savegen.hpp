@@ -17,4 +17,14 @@
 
 #pragma once
 
+struct __attribute__ ((packed)) SaveGeneratorPacket {
+    uint64_t psnAccountId;
+    char dirName[0x20];
+    char titleId[0x10];
+    uint64_t saveBlocks;
+    char zipname[0x80];
+    OrbisSaveDataParam saveParams;
+};
+
+
 void handleSaveGenerating(int connfd, PacketHeader * pHeader);

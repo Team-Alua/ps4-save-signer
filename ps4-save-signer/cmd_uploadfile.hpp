@@ -11,6 +11,6 @@
 #pragma once
 
 
-#define MAX_FILENAME_SIZE 64
+#define MAX_FILENAME_SIZE 0x80 + 1
 
 void handleUploadFile(int connfd, PacketHeader * pHeader);

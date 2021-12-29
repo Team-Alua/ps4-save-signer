@@ -677,3 +677,39 @@ bool changeSaveAccountId(const char * baseMountDirectory, uint64_t accountId) {
     close(fd);
     return success;
 }
+
+
+bool fixParamSfoTitleId(const char * baseMountDirectory, const char * titleId)  {
+    char paramSfoPath[256];
+    memset(paramSfoPath, 0, sizeof(paramSfoPath));
+    sprintf(paramSfoPath, "%s%s", baseMountDirectory, "sce_sys/param.sfo");
+    int fd = open(paramSfoPath, O_RDWR, 0700);
+    if (fd < 0) {
+        Log("Failed to load %s %d", paramSfoPath, errno);
+        return false;
+    }
+    uint8_t tryCount = 10;
+    bool success = false;
+    do {
+        off_t fileSize = lseek(fd, 0x62C, SEEK_SET);
+        if (fileSize == -1) {
+            Log("Failed to seek to 0x62C for %s - %ld", paramSfoPath, errno);
+            break;
+        }
+        #define TITLE_ID_LENGTH 4 + 5
+        // A-Z => XXXX 0-9 => DDDDD
+        ssize_t written = write(fd, titleId, TITLE_ID_LENGTH);
+        if (written == TITLE_ID_LENGTH) {
+            success = true;
+            break;
+        }
+        tryCount--;
+        if (tryCount == 0) {
+            Log("Failed to write 10 times for %s", paramSfoPath);
+            break;
+        }
+    } while (true);
+    fsync(fd);
+    close(fd);
+    return success;
+}

@@ -43,11 +43,19 @@ void onRealMount(int32_t errorCode, OrbisSaveDataMountResult& mountResult, void 
     char mountPath[126];
     memset(mountPath, 0, sizeof(mountPath));
     sprintf(mountPath, "/mnt/sandbox/BREW00085_000%s/", mountResult.mountPathName);
-    if (!changeSaveAccountId(mountPath, realArgs.targetPsnAccountId)) {
-        Log("Failed to change psn id from %016lx to %016lx", realArgs.originalPsnAccountId, realArgs.targetPsnAccountId);
+    SaveResignPacket * resignPacket = realArgs.resignPacket;
+    if (!changeSaveAccountId(mountPath, resignPacket->targetPsnAccountId)) {
+        Log("Failed to change psn id from %016lx to %016lx", resignPacket->originalPsnAccountId, resignPacket->targetPsnAccountId);
         realArgs.errorCode = -1;
     } else {
-       Log("Successfully changeed psn id from %016lx to %016lx", realArgs.originalPsnAccountId, realArgs.targetPsnAccountId);
+       Log("Successfully changeed psn id from %016lx to %016lx", resignPacket->originalPsnAccountId, resignPacket->targetPsnAccountId);
+    }
+
+    if (!fixParamSfoTitleId(mountPath, resignPacket->titleId)) {
+        Log("Failed to fix the reported titleId of the mounter.");
+        realArgs.errorCode = -1;
+    } else {
+        Log("Successfully fixed the reported titleId of the mounter.");
     }
 }
 
@@ -159,8 +167,7 @@ static void doSaveResign(int connfd, SaveResignPacket * saveResignPacket) {
             RealMountArgs realArgs;
             memset(&realArgs, 0, sizeof(realArgs));
             realArgs.connfd = connfd;
-            realArgs.originalPsnAccountId = saveResignPacket->originalPsnAccountId;
-            realArgs.targetPsnAccountId = saveResignPacket->targetPsnAccountId;
+            realArgs.resignPacket = saveResignPacket;
 
             int32_t mumErroCode = saveMountUnMount(mount, &onRealMount, &realArgs, &onUnmount, &connfd);
 
@@ -179,9 +186,24 @@ static void doSaveResign(int connfd, SaveResignPacket * saveResignPacket) {
 
             strcat(outZipPath, outZipFileName);
             
+            
+            char zipOutTargetDirectory[80];
+            memset(zipOutTargetDirectory, 0, sizeof(zipOutTargetDirectory));
+            sprintf(zipOutTargetDirectory, "PS4/SAVEDATA/%016lx/%s/", saveResignPacket->targetPsnAccountId, saveResignPacket->titleId);
+            
+            std::vector<std::string> zipOutPaths;
+
+            memset(pfsPath, 0, sizeof(pfsPath));            
+            sprintf(pfsPath, "%s%s.bin", zipOutTargetDirectory, saveResignPacket->dirName);
+            zipOutPaths.push_back(pfsPath);
+
+            memset(binPath, 0, sizeof(binPath));
+            sprintf(binPath, "%s%s", zipOutTargetDirectory, saveResignPacket->dirName);
+            zipOutPaths.push_back(binPath);
 
 
-            if (zip_partial_directory(outZipPath, targetPaths, zipPaths) != 0) {
+
+            if (zip_partial_directory(outZipPath, targetPaths, zipOutPaths) != 0) {
                 sendStatusCode(connfd, errno);
                 break;
             } else {

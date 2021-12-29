@@ -1,14 +1,5 @@
 #include "cmd_savegen.hpp"
-#include <inttypes.h>
 
-struct __attribute__ ((packed)) SaveGeneratorPacket {
-    uint64_t psnAccountId;
-    char dirName[0x20];
-    char titleId[0x10];
-    uint64_t saveBlocks;
-    char zipname[0x30];
-    OrbisSaveDataParam saveParams;
-};
 
 static void doSaveGenerator(int, SaveGeneratorPacket *);
 
@@ -86,6 +77,11 @@ static void doSaveGenerator(int connfd, SaveGeneratorPacket * saveGenPacket) {
         uint32_t saveModError = CMD_SAVE_GEN_PARMSFO_MOD_FAILED;
         do {
             if (!changeSaveAccountId(saveMountDirectory, saveGenPacket->psnAccountId)) {
+                break;
+            }
+
+            // Fix issue 
+            if (!fixParamSfoTitleId(saveMountDirectory, saveGenPacket->titleId)) {
                 break;
             }
 
