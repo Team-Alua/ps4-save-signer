@@ -74,7 +74,7 @@ def createSaveGenHeader(entries: dict):
     dataArr += entries["dirName"].ljust(0x20, "\x00").encode()
     dataArr += entries["titleId"].ljust(0x10, "\x00").encode()
     dataArr += struct.pack("<Q", entries["saveBlocks"])
-    dataArr += entries["zipName"].ljust(0x30, "\x00").encode()
+    dataArr += entries["zipName"].ljust(0x80, "\x00").encode()
     dataArr += entries["title"].ljust(0x80, "\x00").encode()
     dataArr += entries["subtitle"].ljust(0x80, "\x00").encode()
     dataArr += entries["details"].ljust(0x400, "\x00").encode()
